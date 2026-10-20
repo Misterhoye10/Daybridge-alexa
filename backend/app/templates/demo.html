@@ -11,7 +11,17 @@
     body { font-family: 'Inter', sans-serif; }
     .chat-bubble-user { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
     .chat-bubble-alexa { background: #1e293b; border: 1px solid #334155; }
-    .pulse-glow { box-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
+    .pulse-glow { box-shadow: 0 0 15px rgba(56, 189, 248, 0.5); }
+    .alexa-ring {
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.6), inset 0 0 15px rgba(59, 130, 246, 0.4);
+    }
+    @keyframes pulse-wave {
+      0%, 100% { height: 6px; }
+      50% { height: 24px; }
+    }
+    .wave-bar {
+      animation: pulse-wave 1s ease-in-out infinite;
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
@@ -30,11 +40,19 @@
         <p class="text-xs text-slate-400">Say it. Plan it. Get it done.</p>
       </div>
     </div>
-    <div class="flex items-center space-x-4">
-      <div class="flex items-center space-x-2 text-xs bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
+    <div class="flex items-center space-x-3">
+      <!-- Voice Toggle -->
+      <button id="voice-toggle-btn" onclick="toggleVoiceSpeech()" 
+              class="flex items-center space-x-1.5 text-xs bg-cyan-950/70 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-800/80 px-3 py-1.5 rounded-full transition shadow-sm">
+        <span id="voice-icon">🔊</span>
+        <span id="voice-label" class="font-medium">Alexa Voice: ON</span>
+      </button>
+
+      <div class="hidden sm:flex items-center space-x-2 text-xs bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span class="text-slate-300 font-medium">Backend API Online</span>
+        <span class="text-slate-300 font-medium">API Online</span>
       </div>
+
       <button onclick="fetchPlans()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 transition">
         📂 Saved Plans (<span id="saved-count">0</span>)
       </button>
@@ -55,7 +73,15 @@
           <div class="w-3 h-3 rounded-full bg-cyan-400 pulse-glow"></div>
           <span class="font-semibold text-sm text-slate-200">Alexa+ Voice & Intent Engine</span>
         </div>
-        <span class="text-xs text-slate-400">Google Gemini Agent</span>
+        
+        <!-- Live Audio Wave Indicator -->
+        <div id="audio-wave-container" class="hidden items-center space-x-1">
+          <span class="w-1 bg-cyan-400 rounded-full wave-bar" style="animation-delay: 0.1s"></span>
+          <span class="w-1 bg-blue-400 rounded-full wave-bar" style="animation-delay: 0.3s"></span>
+          <span class="w-1 bg-indigo-400 rounded-full wave-bar" style="animation-delay: 0.5s"></span>
+          <span class="w-1 bg-cyan-300 rounded-full wave-bar" style="animation-delay: 0.2s"></span>
+          <span class="text-[11px] text-cyan-400 font-mono ml-1">Alexa Speaking...</span>
+        </div>
       </div>
 
       <!-- Quick Scenario Prompts -->
@@ -84,24 +110,32 @@
           </div>
           <div class="chat-bubble-alexa rounded-2xl rounded-tl-sm p-3.5 max-w-[85%] text-sm text-slate-200 leading-relaxed shadow-sm">
             <p class="font-semibold text-cyan-400 mb-1">Hello! I'm Daybridge.</p>
-            <p>Tell me what you want to achieve (e.g., an upcoming interview, a study schedule, or a project deadline). I'll turn your intention into an actionable, structured plan with realistic tasks!</p>
+            <p>Tell me what you want to achieve (e.g., an upcoming interview, a study schedule, or a project deadline). Click the <strong class="text-cyan-300">Microphone 🎙️</strong> to speak naturally or type your message. I'll translate your intention into a structured, actionable plan!</p>
           </div>
         </div>
       </div>
 
-      <!-- Typing Indicator -->
-      <div id="typing-indicator" class="hidden px-4 py-2 bg-slate-900/40 border-t border-slate-800/40 text-xs text-cyan-400 flex items-center space-x-2">
+      <!-- Typing / Listening Indicator -->
+      <div id="typing-indicator" class="hidden px-4 py-2.5 bg-slate-900/60 border-t border-slate-800/60 text-xs text-cyan-400 flex items-center space-x-2">
         <span class="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-bounce"></span>
         <span class="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style="animation-delay: 0.2s"></span>
         <span class="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style="animation-delay: 0.4s"></span>
-        <span class="text-slate-400">Alexa+ is analyzing intention and executing tools...</span>
+        <span id="indicator-text" class="text-slate-300 font-medium">Alexa+ is analyzing intention and executing tools...</span>
       </div>
 
-      <!-- Input Area -->
+      <!-- Input Area with Mic and Send -->
       <div class="p-4 bg-slate-900 border-t border-slate-800">
         <form onsubmit="handleChatSubmit(event)" class="flex gap-2">
-          <input id="user-input" type="text" placeholder="Tell Daybridge your goal (e.g. Prep for Friday interview...)"
+          <!-- Microphone Button -->
+          <button type="button" id="mic-btn" onclick="toggleSpeechRecognition()"
+                  title="Click to speak with Alexa"
+                  class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 w-11 h-11 rounded-xl flex items-center justify-center text-lg transition shrink-0">
+            <span id="mic-icon">🎙️</span>
+          </button>
+
+          <input id="user-input" type="text" placeholder="Speak or type your goal (e.g. Prep for Friday interview...)"
                  class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition" />
+
           <button type="submit" id="send-btn"
                   class="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-cyan-500/20 flex items-center gap-1.5">
             <span>Send</span>
@@ -173,8 +207,115 @@
   <script>
     let activePlan = null;
     let conversationHistory = [];
+    let isVoiceEnabled = true;
+    let recognition = null;
+    let isRecording = false;
+
+    // Initialize Web Speech Recognition
+    function initSpeech() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+          isRecording = true;
+          document.getElementById('mic-icon').textContent = '🔴';
+          document.getElementById('mic-btn').classList.add('border-red-500', 'bg-red-950/60', 'animate-pulse');
+          showIndicator("Listening to your voice...");
+        };
+
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          document.getElementById('user-input').value = transcript;
+          hideIndicator();
+          // Auto submit after voice
+          handleChatSubmit(new Event('submit'));
+        };
+
+        recognition.onerror = (event) => {
+          console.warn('Speech recognition error:', event.error);
+          stopRecording();
+          hideIndicator();
+        };
+
+        recognition.onend = () => {
+          stopRecording();
+        };
+      } else {
+        console.log('Speech recognition not supported in this browser.');
+      }
+    }
+
+    function toggleSpeechRecognition() {
+      if (!recognition) {
+        alert('Voice input is best supported on Google Chrome, Microsoft Edge, or Safari.');
+        return;
+      }
+      if (isRecording) {
+        recognition.stop();
+        stopRecording();
+      } else {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+
+    function stopRecording() {
+      isRecording = false;
+      document.getElementById('mic-icon').textContent = '🎙️';
+      document.getElementById('mic-btn').classList.remove('border-red-500', 'bg-red-950/60', 'animate-pulse');
+      hideIndicator();
+    }
+
+    // Alexa Voice Speech Synthesis (Text-to-Speech)
+    function speakAlexaReply(text) {
+      if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
+
+      window.speechSynthesis.cancel(); // Stop prior speech
+      const cleanText = text.replace(/[*_#`]/g, '');
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+
+      // Select female or natural assistant voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v => (v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Google US English') || v.name.includes('Jenny')) && v.lang.startsWith('en'));
+      if (preferred) {
+        utterance.voice = preferred;
+      }
+
+      const wave = document.getElementById('audio-wave-container');
+      utterance.onstart = () => {
+        if (wave) wave.classList.remove('hidden');
+      };
+      utterance.onend = () => {
+        if (wave) wave.classList.add('hidden');
+      };
+      utterance.onerror = () => {
+        if (wave) wave.classList.add('hidden');
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function toggleVoiceSpeech() {
+      isVoiceEnabled = !isVoiceEnabled;
+      document.getElementById('voice-icon').textContent = isVoiceEnabled ? '🔊' : '🔇';
+      document.getElementById('voice-label').textContent = isVoiceEnabled ? 'Alexa Voice: ON' : 'Alexa Voice: OFF';
+      if (!isVoiceEnabled && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        document.getElementById('audio-wave-container')?.classList.add('hidden');
+      }
+    }
 
     async function init() {
+      initSpeech();
       await fetchPlans();
     }
 
@@ -184,7 +325,6 @@
         const data = await res.json();
         if (data.success && data.plans.length > 0) {
           document.getElementById('saved-count').textContent = data.plans.length;
-          // If no active plan, select the most recent one
           if (!activePlan) {
             renderPlan(data.plans[0]);
           }
@@ -199,6 +339,17 @@
       handleChatSubmit(new Event('submit'));
     }
 
+    function showIndicator(msg = "Alexa+ is analyzing intention and executing tools...") {
+      document.getElementById('indicator-text').textContent = msg;
+      document.getElementById('typing-indicator').classList.remove('hidden');
+      const messagesContainer = document.getElementById('messages-container');
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function hideIndicator() {
+      document.getElementById('typing-indicator').classList.add('hidden');
+    }
+
     async function handleChatSubmit(e) {
       if (e) e.preventDefault();
       const input = document.getElementById('user-input');
@@ -207,11 +358,7 @@
 
       input.value = '';
       appendUserMessage(message);
-
-      // Show typing indicator
-      document.getElementById('typing-indicator').classList.remove('hidden');
-      const messagesContainer = document.getElementById('messages-container');
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      showIndicator("Alexa+ is analyzing intention and executing tools...");
 
       try {
         const payload = {
@@ -227,12 +374,15 @@
         });
 
         const data = await res.json();
-        document.getElementById('typing-indicator').classList.add('hidden');
+        hideIndicator();
 
         if (data.success) {
           appendAlexaMessage(data.reply, data.action);
           conversationHistory.push({ role: 'user', content: message });
           conversationHistory.push({ role: 'assistant', content: data.reply });
+
+          // Speak reply aloud!
+          speakAlexaReply(data.reply);
 
           // If action created or updated plan, refresh UI
           if (data.action && data.action.data) {
@@ -243,7 +393,7 @@
           appendAlexaMessage("I encountered an issue processing that: " + (data.error || "Unknown error"));
         }
       } catch (err) {
-        document.getElementById('typing-indicator').classList.add('hidden');
+        hideIndicator();
         appendAlexaMessage("Network or server connection error. Please make sure backend is running.");
       }
     }
@@ -373,7 +523,6 @@
         const data = await res.json();
         if (data.success) {
           updateProgressDisplay(data.plan_progress);
-          // Visual toggle
           const card = document.getElementById(`task-card-${taskId}`);
           if (card) {
             const titleSpan = card.querySelector('span.font-medium');
