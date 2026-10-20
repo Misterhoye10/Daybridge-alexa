@@ -1,6 +1,6 @@
 import os
 import logging
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 from app.config import Config
 from app.models import db
@@ -9,7 +9,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("daybridge")
 
 def create_app(config_class=Config):
-    app = Flask(__name__)
+    template_dir = Config.BASE_DIR / "app" / "templates"
+    app = Flask(__name__, template_folder=str(template_dir))
     app.config.from_object(config_class)
 
     # Enable CORS for React/Vite frontend
@@ -18,12 +19,10 @@ def create_app(config_class=Config):
     # Determine database: test if PostgreSQL is accessible
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
     if "postgresql" in db_uri:
-        can_connect = False
         try:
             import psycopg
-            # Probe connection with 2 second timeout
             with psycopg.connect(db_uri, connect_timeout=2) as conn:
-                can_connect = True
+                pass
         except Exception as e:
             logger.warning(
                 f"PostgreSQL connection to {db_uri.split('@')[-1] if '@' in db_uri else db_uri} failed: {e}\n"
@@ -48,11 +47,16 @@ def create_app(config_class=Config):
     app.register_blueprint(chat_bp)
 
     @app.route("/", methods=["GET"])
-    def root():
+    @app.route("/demo", methods=["GET"])
+    def index():
+        # If client accepts HTML, serve the interactive testing playground
+        if "text/html" in request.headers.get("Accept", ""):
+            return render_template("demo.html")
         return jsonify({
             "service": "Daybridge API (Alexa+ Hackathon 2026)",
             "status": "active",
             "tagline": "Say it. Plan it. Get it done.",
+            "demo_ui": "/demo",
             "endpoints": [
                 "/api/health",
                 "/api/chat (POST)",
