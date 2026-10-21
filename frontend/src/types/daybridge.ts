@@ -2,6 +2,7 @@ export type TaskPriority = 'low' | 'medium' | 'high';
 
 export interface Task {
   id: string;
+  parentId?: string;
   planId?: string;
   title: string;
   description: string;
@@ -11,6 +12,8 @@ export interface Task {
   estimatedMinutes?: number;
   isCompleted: boolean;
   orderIndex: number;
+  categoryEmoji?: string;
+  subtasks?: Task[];
 }
 
 export interface Plan {
@@ -20,6 +23,7 @@ export interface Plan {
   objective?: string;
   createdAt: string;
   updatedAt: string;
+  granularity?: number; // 1 (macro) to 5 (micro-steps)
   tasks: Task[];
   completionPercentage?: number;
 }

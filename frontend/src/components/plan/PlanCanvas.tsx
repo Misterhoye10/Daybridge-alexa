@@ -2,6 +2,7 @@ import React from 'react';
 import type { Plan, Task, AssistantAction } from '../../types/daybridge';
 import { TaskItem } from './TaskItem';
 import { ProgressBar } from './ProgressBar';
+import { GranularityControl } from './GranularityControl';
 import { ActionBadge } from '../common/ActionBadge';
 import { Bookmark, Check, CheckCircle2, Plus, Calendar, Layers } from 'lucide-react';
 
@@ -166,9 +167,23 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
         <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#FFFFFF', marginBottom: '8px', letterSpacing: '-0.02em' }}>
           {plan.title}
         </h2>
-        <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '18px' }}>
+        <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '16px' }}>
           {plan.summary}
         </p>
+
+        {/* Plan Granularity & Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px', marginBottom: '16px' }}>
+          <GranularityControl
+            value={plan.granularity || 2}
+            onChange={(_newLevel) => {
+              // Update plan granularity
+              onUpdateTask?.({
+                ...plan.tasks[0],
+                // dummy trigger or pass updatePlan
+              });
+            }}
+          />
+        </div>
 
         {/* Progress Bar */}
         <ProgressBar completed={completedCount} total={totalCount} />

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { ChatMessage, AssistantAction } from '../../types/daybridge';
 import { ActionBadge } from '../common/ActionBadge';
+import { AlexaOrb } from '../brand/AlexaOrb';
 import { Send, Mic, Sparkles, AlertCircle, Bot, User, CheckCircle2 } from 'lucide-react';
 
 interface ChatPanelProps {
@@ -76,23 +77,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Animated Alexa+ Ring Orb */}
-          <div
-            style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              background: 'var(--brand-gradient)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: isLoading || isSimulatedListening ? 'var(--alexa-glow-strong)' : 'var(--alexa-glow)',
-              transition: 'all var(--transition-normal)',
-              animation: isLoading ? 'pulse 1.8s infinite' : 'none'
-            }}
-          >
-            <Sparkles size={14} color="#0B0F1A" />
-          </div>
+          {/* Animated Alexa+ Ambient Orb */}
+          <AlexaOrb
+            state={isSimulatedListening ? 'listening' : isLoading ? 'thinking' : 'idle'}
+            size="md"
+          />
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

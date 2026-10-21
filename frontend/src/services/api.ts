@@ -17,26 +17,38 @@ export const INITIAL_INTERVIEW_PREP_PLAN: Plan = {
       title: 'Review Core Data Structures & Complexities',
       description: 'Brush up on Arrays, Hash Tables, Trees, and Big-O trade-offs.',
       day: 'Monday (1 hr)',
+      categoryEmoji: '🧠',
       priority: 'high',
       estimatedMinutes: 60,
       isCompleted: true,
-      orderIndex: 0
+      orderIndex: 0,
+      subtasks: [
+        { id: 'sub-1a', title: 'Binary Trees & Traversals', description: 'In-order, pre-order, and level-order traversal patterns', isCompleted: true, estimatedMinutes: 25, orderIndex: 0 },
+        { id: 'sub-1b', title: 'Hash Table collisions & load factor', description: 'Chaining vs open addressing tradeoffs', isCompleted: true, estimatedMinutes: 20, orderIndex: 1 },
+        { id: 'sub-1c', title: 'Quick summary cheat sheet', description: 'Space/time complexity reference notes', isCompleted: true, estimatedMinutes: 15, orderIndex: 2 }
+      ]
     },
     {
       id: 'task-2',
       title: 'Solve 2 Medium Two-Pointer & Sliding Window Problems',
       description: 'Focus on LeetCode patterns for Subarrays and String anagrams.',
       day: 'Tuesday (1 hr)',
+      categoryEmoji: '💻',
       priority: 'high',
       estimatedMinutes: 60,
       isCompleted: false,
-      orderIndex: 1
+      orderIndex: 1,
+      subtasks: [
+        { id: 'sub-2a', title: 'Longest Substring Without Repeating Characters', description: 'Set/map index tracking', isCompleted: false, estimatedMinutes: 30, orderIndex: 0 },
+        { id: 'sub-2b', title: 'Container With Most Water', description: 'Greedy inward pointer convergence', isCompleted: false, estimatedMinutes: 30, orderIndex: 1 }
+      ]
     },
     {
       id: 'task-3',
       title: 'Dynamic Programming & Graph Traversals (DFS/BFS)',
       description: 'Implement Topological sort and standard 1D memoization templates.',
       day: 'Wednesday (1 hr)',
+      categoryEmoji: '📊',
       priority: 'medium',
       estimatedMinutes: 60,
       isCompleted: false,
@@ -47,6 +59,7 @@ export const INITIAL_INTERVIEW_PREP_PLAN: Plan = {
       title: 'System Design Fundamentals & API Trade-offs',
       description: 'Review caching layers, database indexing, and rate-limiting patterns.',
       day: 'Thursday (1 hr)',
+      categoryEmoji: '🏗️',
       priority: 'medium',
       estimatedMinutes: 60,
       isCompleted: false,
@@ -57,6 +70,7 @@ export const INITIAL_INTERVIEW_PREP_PLAN: Plan = {
       title: 'Behavioral Stories (STAR Method) & Final Warm-up',
       description: 'Structure 3 impact stories (Conflict, Leadership, Technical challenge).',
       day: 'Friday (1 hr)',
+      categoryEmoji: '🗣️',
       priority: 'high',
       estimatedMinutes: 60,
       isCompleted: false,

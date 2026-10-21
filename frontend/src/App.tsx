@@ -4,13 +4,15 @@ import { Logo } from './components/brand/Logo';
 import { ChatPanel } from './components/chat/ChatPanel';
 import { PlanCanvas } from './components/plan/PlanCanvas';
 import { SavedPlansDrawer } from './components/saved/SavedPlansDrawer';
+import { DesignSystemModal } from './components/design-system/DesignSystemModal';
 import { apiService, INITIAL_INTERVIEW_PREP_PLAN } from './services/api';
-import { Bookmark, RotateCcw, MessageSquare, LayoutGrid, Sparkles } from 'lucide-react';
+import { Bookmark, RotateCcw, MessageSquare, LayoutGrid, Sparkles, Palette } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activePlan, setActivePlan] = useState<Plan | null>(INITIAL_INTERVIEW_PREP_PLAN);
   const [savedPlans, setSavedPlans] = useState<Plan[]>([]);
   const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
+  const [isDesignSystemOpen, setIsDesignSystemOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<AssistantAction | undefined>(undefined);
@@ -252,6 +254,28 @@ export const App: React.FC = () => {
         {/* Header Right Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
+            onClick={() => setIsDesignSystemOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 12px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(0, 212, 170, 0.08)',
+              border: '1px solid rgba(0, 212, 170, 0.25)',
+              color: 'var(--brand-teal)',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'var(--transition-fast)'
+            }}
+            title="Explore Daybridge Design System & Tokens"
+          >
+            <Palette size={14} />
+            <span>Design System</span>
+          </button>
+
+          <button
             onClick={() => setIsSavedDrawerOpen(true)}
             style={{
               display: 'inline-flex',
@@ -411,6 +435,12 @@ export const App: React.FC = () => {
         activePlanId={activePlan?.id}
         onSelectPlan={handleSelectPlan}
         onDeletePlan={handleDeletePlan}
+      />
+
+      {/* Design System & Pattern Guide Modal */}
+      <DesignSystemModal
+        isOpen={isDesignSystemOpen}
+        onClose={() => setIsDesignSystemOpen(false)}
       />
     </div>
   );
