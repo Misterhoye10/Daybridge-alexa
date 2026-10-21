@@ -1,0 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* Brand Core Colors */
+  --brand-teal: #00D4AA;
+  --brand-cyan: #0EA5E9;
+  --brand-gradient: linear-gradient(135deg, #00D4AA 0%, #0EA5E9 100%);
+  --brand-gradient-hover: linear-gradient(135deg, #05e2b6 0%, #38bdf8 100%);
+  --brand-gradient-subtle: linear-gradient(135deg, rgba(0, 212, 170, 0.12) 0%, rgba(14, 165, 233, 0.12) 100%);
+  
+  /* Accent Colors */
+  --accent-lavender: #D8B4FE;
+  --accent-lavender-subtle: rgba(216, 180, 254, 0.15);
+  --accent-peach: #FDBA74;
+  --accent-peach-subtle: rgba(253, 186, 116, 0.15);
+
+  /* Surface / Canvas Hierarchy */
+  --bg-canvas: #0B0F1A;
+  --bg-surface: #121826;
+  --bg-surface-elevated: #182236;
+  --bg-surface-glass: rgba(18, 24, 38, 0.72);
+  --bg-card: rgba(24, 34, 54, 0.6);
+  --bg-card-hover: rgba(30, 43, 68, 0.75);
+
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-medium: rgba(255, 255, 255, 0.14);
+  --border-brand: rgba(14, 165, 233, 0.35);
+  --border-focus: rgba(0, 212, 170, 0.6);
+
+  /* Typography Colors */
+  --text-primary: #FFFFFF;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-dim: #475569;
+
+  /* State Colors (PRD Action Status) */
+  --state-suggested-border: #FDBA74;
+  --state-suggested-bg: rgba(253, 186, 116, 0.1);
+  --state-suggested-text: #FED7AA;
+
+  --state-awaiting-border: #D8B4FE;
+  --state-awaiting-bg: rgba(216, 180, 254, 0.12);
+  --state-awaiting-text: #E9D5FF;
+
+  --state-completed-border: #00D4AA;
+  --state-completed-bg: rgba(0, 212, 170, 0.1);
+  --state-completed-text: #5EEAD4;
+
+  --state-failed-border: #F43F5E;
+  --state-failed-bg: rgba(244, 63, 94, 0.12);
+  --state-failed-text: #FDA4AF;
+
+  /* Alexa+ Ring Glow Accents */
+  --alexa-glow: 0 0 25px rgba(14, 165, 233, 0.3);
+  --alexa-glow-strong: 0 0 45px rgba(0, 212, 170, 0.45);
+  --card-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.5);
+
+  /* Typography Families */
+  --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
