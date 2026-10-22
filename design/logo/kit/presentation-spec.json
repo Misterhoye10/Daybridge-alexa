@@ -1,0 +1,56 @@
+{
+  "brand": "Daybridge",
+  "tagline": "Say it. Plan it. Get it done.",
+  "brief": "An AI personal assistant that transforms conversational intentions into structured, actionable plans with real backend state execution. Calm, capable, honest, and warm.",
+  "adjectives": [
+    "calm",
+    "capable",
+    "honest",
+    "warm"
+  ],
+  "criteria": "Success: distinct from generic chatbot clichés, recognisable at 16 px, works in one colour, conveys honest action and arrival.",
+  "industry": "consumer-app",
+  "mockups": [
+    "app-icon",
+    "website",
+    "social",
+    "favicon-tab",
+    "terminal",
+    "readme"
+  ],
+  "nav": [
+    "How it works",
+    "Truthful State",
+    "Web App"
+  ],
+  "brand_color": "#0F6F6B",
+  "tile_color": "#0F6F6B",
+  "greyscale": false,
+  "final": true,
+  "round": 1,
+  "designer": "Daybridge Design System",
+  "concepts": [
+    {
+      "name": "The Arch & Arrival",
+      "symbol": "daybridge-symbol.svg",
+      "lockup": "daybridge-lockup.svg",
+      "stacked": "daybridge-stacked.svg",
+      "symbol_on_tile": "daybridge-symbol-on-tile.svg",
+      "symbol_on_dark": "daybridge-symbol-on-dark.svg",
+      "lockup_on_dark": "daybridge-lockup-on-dark.svg",
+      "idea": "A pure geometric arch spanning from intention to completion, anchored by an arrival milestone.",
+      "rationale": [
+        "A bridge from intention to action with zero clutter or ornament",
+        "Tested to hold up clearly from 16 px favicon to high-res displays",
+        "Built on a strict geometric grid with round caps and optical balance",
+        "Pairs a cool neutral scale with a single action accent: Harbor"
+      ]
+    }
+  ],
+  "recommendation": "The Arch & Arrival — an enduring, quiet, and timeless mark that communicates arrival at done with honest simplicity.",
+  "next_steps": [
+    "Integration into production web application and PWA assets",
+    "Implementation across documentation, pitch deck, and developer hackathon video",
+    "Final asset deployment across light and dark system themes"
+  ]
+}

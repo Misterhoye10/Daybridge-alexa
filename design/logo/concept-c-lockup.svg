@@ -1,0 +1,9 @@
+<svg width="768" height="256" viewBox="0 0 768 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Daybridge — Lockup C</title>
+  <g transform="translate(40, 36) scale(0.72)">
+    <path d="M192 48V208" stroke="#12161B" stroke-width="32" stroke-linecap="round"/>
+    <path d="M64 208V152C64 127.699 83.6995 108 108 108H192" stroke="#12161B" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="128" cy="172" r="22" fill="#0F6F6B"/>
+  </g>
+  <text x="250" y="152" font-family="'Geist', system-ui, -apple-system, sans-serif" font-size="82" font-weight="600" letter-spacing="-0.03em" fill="#12161B">daybridge</text>
+</svg>
