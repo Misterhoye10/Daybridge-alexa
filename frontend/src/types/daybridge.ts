@@ -35,6 +35,7 @@ export interface Task {
   bumpedFrom?: string;
   dueDate?: string;
   categoryEmoji?: string;
+  isSuggested?: boolean;
   subtasks?: Task[];
 }
 

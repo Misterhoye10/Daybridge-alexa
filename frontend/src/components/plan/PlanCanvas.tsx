@@ -9,7 +9,9 @@ import {
   Plus,
   Bookmark,
   CheckCircle2,
-  Pencil
+  Pencil,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 
 interface PlanCanvasProps {
@@ -41,6 +43,7 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
   onUpdatePlanTitle
 }) => {
   const [selectedDay, setSelectedDay] = useState<string>('All');
+  const [viewMode, setViewMode] = useState<'timeline' | 'board'>('timeline');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(plan?.title || '');
 
@@ -126,6 +129,15 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
     groupedTasks[key].push(task);
   });
 
+  // Categorize for Status Board View (Agent Lifecycle Triage)
+  const needsApprovalTasks = displayedTasks.filter(
+    (t) => pendingAction?.payload?.taskId === t.id || t.isSuggested || (pendingAction && pendingAction.state === 'awaiting_confirmation')
+  );
+  const completedTasks = displayedTasks.filter((t) => t.done || t.isCompleted);
+  const inProgressTasks = displayedTasks.filter(
+    (t) => !completedTasks.includes(t) && !needsApprovalTasks.includes(t)
+  );
+
   return (
     <div
       style={{
@@ -150,7 +162,9 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '10px'
+            marginBottom: '10px',
+            flexWrap: 'wrap',
+            gap: '8px'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -171,34 +185,110 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
               {isSaved ? <Check size={11} strokeWidth={2.5} /> : null}
               {isSaved ? 'Saved plan' : 'Draft plan'}
             </span>
+
+            {needsApprovalTasks.length > 0 && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: 'var(--color-state-awaiting-text)',
+                  backgroundColor: 'var(--color-state-awaiting-bg)',
+                  border: '1px solid var(--color-state-awaiting-border)',
+                  padding: '2px 8px',
+                  borderRadius: 'var(--radius-sm)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--color-state-awaiting-text)' }} />
+                {needsApprovalTasks.length} Needs approval
+              </span>
+            )}
           </div>
 
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* View Mode Segmented Control: [ Timeline | Board ] */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                backgroundColor: 'var(--color-bg-sunken)',
+                border: '1px solid var(--color-border-default)',
+                borderRadius: 'var(--radius-pill)',
+                padding: '2px',
+                gap: '2px'
+              }}
+            >
+              <button
+                onClick={() => setViewMode('timeline')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 8px',
+                  borderRadius: 'var(--radius-pill)',
+                  border: 'none',
+                  backgroundColor: viewMode === 'timeline' ? 'var(--color-bg-surface)' : 'transparent',
+                  color: viewMode === 'timeline' ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                  fontWeight: viewMode === 'timeline' ? 600 : 400,
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  boxShadow: viewMode === 'timeline' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                  transition: 'all var(--duration-fast) var(--ease-standard)'
+                }}
+              >
+                <List size={11} />
+                Timeline
+              </button>
+              <button
+                onClick={() => setViewMode('board')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 8px',
+                  borderRadius: 'var(--radius-pill)',
+                  border: 'none',
+                  backgroundColor: viewMode === 'board' ? 'var(--color-bg-surface)' : 'transparent',
+                  color: viewMode === 'board' ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                  fontWeight: viewMode === 'board' ? 600 : 400,
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  boxShadow: viewMode === 'board' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                  transition: 'all var(--duration-fast) var(--ease-standard)'
+                }}
+              >
+                <LayoutGrid size={11} />
+                Board
+              </button>
+            </div>
+
             {!isSaved ? (
               <button
                 onClick={onSavePlan}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 14px',
+                  gap: '5px',
+                  padding: '5px 12px',
                   borderRadius: 'var(--radius-md)',
                   backgroundColor: 'var(--color-action-primary)',
                   color: 'var(--color-action-on-primary)',
                   border: 'none',
                   fontWeight: 600,
-                  fontSize: '12px',
+                  fontSize: '11px',
                   cursor: 'pointer',
                   transition: 'background-color var(--duration-fast) var(--ease-standard)'
                 }}
               >
-                <Bookmark size={13} />
+                <Bookmark size={12} />
                 Save plan
               </button>
             ) : (
               <span
                 style={{
-                  fontSize: '12px',
+                  fontSize: '11px',
                   color: 'var(--color-text-tertiary)',
                   fontFamily: 'var(--font-mono)'
                 }}
@@ -485,7 +575,7 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
         </div>
       )}
 
-      {/* Task List / Timeline Content - Clean, Document-Like */}
+      {/* Content Area: Dual-View Mode (Timeline with 3-tier depth vs Status Board Triage) */}
       <div
         className="no-scrollbar"
         style={{
@@ -494,86 +584,333 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
           padding: '20px 24px'
         }}
       >
-        {Object.entries(groupedTasks).length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-tertiary)' }}>
-            <p style={{ fontSize: 'var(--font-size-body)' }}>No items match the selected filter.</p>
-          </div>
-        ) : (
-          Object.entries(groupedTasks).map(([groupName, tasks]) => {
-            const groupMinutes = tasks
-              .filter((t) => (t.kind || 'task') !== 'marker')
-              .reduce((acc, t) => acc + (t.minutes || t.estimatedMinutes || 0), 0);
-            const isGroupCompleted = tasks.every((t) => t.done || t.isCompleted);
+        {viewMode === 'board' ? (
+          /* Status Board Kanban View */
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '14px',
+              alignItems: 'start',
+              paddingBottom: '16px'
+            }}
+          >
+            {/* Column 1: NEEDS APPROVAL */}
+            <div className="swimlane-well">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingBottom: '8px',
+                  borderBottom: '1px solid var(--color-border-default)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--color-state-awaiting-text)'
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      color: 'var(--color-text-primary)'
+                    }}
+                  >
+                    Needs You
+                  </span>
+                </div>
+                <span
+                  className="tabular-nums"
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    fontFamily: 'var(--font-mono)',
+                    backgroundColor: 'var(--color-bg-surface)',
+                    border: '1px solid var(--color-border-default)',
+                    color: 'var(--color-text-secondary)',
+                    padding: '1px 6px',
+                    borderRadius: 'var(--radius-pill)'
+                  }}
+                >
+                  {needsApprovalTasks.length}
+                </span>
+              </div>
 
-            return (
-              <div key={groupName} style={{ marginBottom: '24px' }}>
+              {needsApprovalTasks.length === 0 ? (
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '10px',
-                    paddingBottom: '6px',
-                    borderBottom: '1px solid var(--color-border-default)'
+                    justifyContent: 'center',
+                    minHeight: '120px',
+                    color: 'var(--color-text-tertiary)',
+                    fontSize: '12px'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Calendar size={13} color="var(--color-text-secondary)" />
-                    <h4
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        color: 'var(--color-text-primary)',
-                        margin: 0
-                      }}
-                    >
-                      {groupName}
-                    </h4>
-                    {groupMinutes > 0 && (
-                      <span
-                        className="tabular-nums"
-                        style={{
-                          fontSize: '11px',
-                          color: 'var(--color-text-tertiary)',
-                          fontFamily: 'var(--font-mono)'
-                        }}
-                      >
-                        · {groupMinutes}m
-                      </span>
-                    )}
-                  </div>
-
-                  {isGroupCompleted && (
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '11px',
-                        color: 'var(--color-state-completed-text)',
-                        fontWeight: 500
-                      }}
-                    >
-                      <CheckCircle2 size={12} /> Done
-                    </span>
-                  )}
+                  Nothing here
                 </div>
-
+              ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {tasks.map((task) => (
+                  {needsApprovalTasks.map((task) => (
                     <TaskItem
                       key={task.id}
                       task={task}
                       onToggleComplete={onToggleTask}
                       onUpdateTask={onUpdateTask}
                       onDeleteTask={onDeleteTask}
-                      isSuggested={pendingAction?.payload?.taskId === task.id}
+                      isSuggested={true}
                     />
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Column 2: IN PROGRESS / RUNNING */}
+            <div className="swimlane-well">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingBottom: '8px',
+                  borderBottom: '1px solid var(--color-border-default)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--color-action-primary)'
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      color: 'var(--color-text-primary)'
+                    }}
+                  >
+                    Running
+                  </span>
+                </div>
+                <span
+                  className="tabular-nums"
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    fontFamily: 'var(--font-mono)',
+                    backgroundColor: 'var(--color-bg-surface)',
+                    border: '1px solid var(--color-border-default)',
+                    color: 'var(--color-text-secondary)',
+                    padding: '1px 6px',
+                    borderRadius: 'var(--radius-pill)'
+                  }}
+                >
+                  {inProgressTasks.length}
+                </span>
               </div>
-            );
-          })
+
+              {inProgressTasks.length === 0 ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: '120px',
+                    color: 'var(--color-text-tertiary)',
+                    fontSize: '12px'
+                  }}
+                >
+                  No active tasks
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {inProgressTasks.map((task) => (
+                    <TaskItem
+                      key={task.id}
+                      task={task}
+                      onToggleComplete={onToggleTask}
+                      onUpdateTask={onUpdateTask}
+                      onDeleteTask={onDeleteTask}
+                      isSuggested={false}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Column 3: CONFIRMED / DONE */}
+            <div className="swimlane-well">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingBottom: '8px',
+                  borderBottom: '1px solid var(--color-border-default)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--color-state-completed-text)'
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      color: 'var(--color-text-primary)'
+                    }}
+                  >
+                    Done
+                  </span>
+                </div>
+                <span
+                  className="tabular-nums"
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    fontFamily: 'var(--font-mono)',
+                    backgroundColor: 'var(--color-bg-surface)',
+                    border: '1px solid var(--color-border-default)',
+                    color: 'var(--color-text-secondary)',
+                    padding: '1px 6px',
+                    borderRadius: 'var(--radius-pill)'
+                  }}
+                >
+                  {completedTasks.length}
+                </span>
+              </div>
+
+              {completedTasks.length === 0 ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: '120px',
+                    color: 'var(--color-text-tertiary)',
+                    fontSize: '12px'
+                  }}
+                >
+                  Nothing completed yet
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {completedTasks.map((task) => (
+                    <TaskItem
+                      key={task.id}
+                      task={task}
+                      onToggleComplete={onToggleTask}
+                      onUpdateTask={onUpdateTask}
+                      onDeleteTask={onDeleteTask}
+                      isSuggested={false}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Timeline Document View with 3-Tier Sunken Troughs */
+          Object.entries(groupedTasks).length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-tertiary)' }}>
+              <p style={{ fontSize: 'var(--font-size-body)' }}>No items match the selected filter.</p>
+            </div>
+          ) : (
+            Object.entries(groupedTasks).map(([groupName, tasks]) => {
+              const groupMinutes = tasks
+                .filter((t) => (t.kind || 'task') !== 'marker')
+                .reduce((acc, t) => acc + (t.minutes || t.estimatedMinutes || 0), 0);
+              const isGroupCompleted = tasks.every((t) => t.done || t.isCompleted);
+
+              return (
+                <div key={groupName} className="swimlane-well" style={{ marginBottom: '18px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingBottom: '8px',
+                      borderBottom: '1px solid var(--color-border-default)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Calendar size={13} color="var(--color-text-secondary)" />
+                      <h4
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: 'var(--color-text-primary)',
+                          margin: 0
+                        }}
+                      >
+                        {groupName}
+                      </h4>
+                      {groupMinutes > 0 && (
+                        <span
+                          className="tabular-nums"
+                          style={{
+                            fontSize: '11px',
+                            color: 'var(--color-text-tertiary)',
+                            fontFamily: 'var(--font-mono)'
+                          }}
+                        >
+                          · {groupMinutes}m
+                        </span>
+                      )}
+                    </div>
+
+                    {isGroupCompleted && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '11px',
+                          color: 'var(--color-state-completed-text)',
+                          fontWeight: 500
+                        }}
+                      >
+                        <CheckCircle2 size={12} /> Done
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {tasks.map((task) => (
+                      <TaskItem
+                        key={task.id}
+                        task={task}
+                        onToggleComplete={onToggleTask}
+                        onUpdateTask={onUpdateTask}
+                        onDeleteTask={onDeleteTask}
+                        isSuggested={pendingAction?.payload?.taskId === task.id}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )
         )}
 
         {onAddNewTask && (

@@ -519,7 +519,7 @@ export const App: React.FC = () => {
         {/* Right Pane: Live Interactive Plan Document Studio */}
         <section
           style={{
-            width: '500px',
+            width: 'clamp(500px, 46vw, 780px)',
             flexShrink: 0,
             height: '100%',
             overflow: 'hidden',

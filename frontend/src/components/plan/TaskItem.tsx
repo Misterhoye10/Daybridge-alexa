@@ -13,7 +13,9 @@ import {
   Flag,
   Layers,
   AlertCircle,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Zap,
+  Loader2
 } from 'lucide-react';
 
 interface TaskItemProps {
@@ -118,24 +120,28 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      className="agent-task-card"
       style={{
         display: 'flex',
         flexDirection: 'column',
         padding: '12px 14px',
         backgroundColor: isCompleted
-          ? 'transparent'
-          : isHovered
           ? 'var(--color-bg-sunken)'
+          : isHovered
+          ? 'var(--color-bg-raised)'
           : 'var(--color-bg-surface)',
         border: `1px solid ${
           isSuggested
-            ? 'var(--color-action-primary)'
+            ? 'var(--color-state-awaiting-border)'
             : isHovered
             ? 'var(--color-border-strong)'
             : 'var(--color-border-default)'
         }`,
-        borderRadius: 'var(--radius-md)',
-        transition: 'background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard)',
+        borderRadius: '10px',
+        boxShadow: isHovered
+          ? '0 3px 10px rgba(0, 0, 0, 0.05)'
+          : '0 1px 2px rgba(0, 0, 0, 0.02)',
+        transition: 'all var(--duration-fast) var(--ease-standard)',
         position: 'relative'
       }}
     >
@@ -534,6 +540,118 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                   <Trash2 size={13} />
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* Operational Micro-Metadata Footer (Agent Activity & Truthful State) */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              marginTop: '10px',
+              paddingTop: '8px',
+              borderTop: '1px solid var(--color-border-default)',
+              fontSize: '11px',
+              fontFamily: 'var(--font-mono)'
+            }}
+          >
+            {/* Left: Truthful State / Runtime Duration */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {isCompleted ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    color: 'var(--color-state-completed-text)',
+                    fontWeight: 500
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--color-state-completed-text)'
+                    }}
+                  />
+                  Confirmed
+                </span>
+              ) : task.scheduleStatus === 'in_progress' ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    color: 'var(--color-action-primary)',
+                    fontWeight: 500
+                  }}
+                >
+                  <Loader2 size={11} className="spin-slow" />
+                  Executing · {minutes > 0 ? `${minutes}m` : 'live'}
+                </span>
+              ) : isSuggested ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    color: 'var(--color-state-awaiting-text)',
+                    fontWeight: 500
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--color-state-awaiting-text)'
+                    }}
+                  />
+                  Needs approval
+                </span>
+              ) : (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    color: 'var(--color-text-tertiary)'
+                  }}
+                >
+                  <Clock size={10} />
+                  {task.startTime ? task.startTime : `${minutes}m est`}
+                </span>
+              )}
+            </div>
+
+            {/* Right: Tool & Subtask Activity Badges */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-tertiary)' }}>
+              {task.area && (
+                <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  {task.area}
+                </span>
+              )}
+              {subtasks.length > 0 && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }} title="Subtasks">
+                  <Layers size={10} />
+                  <span className="tabular-nums">{completedSubtasks}/{subtasks.length}</span>
+                </span>
+              )}
+              <span
+                title="Backend tool capability"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  color: 'var(--color-text-tertiary)'
+                }}
+              >
+                <Zap size={10} />
+                <span className="tabular-nums">{task.subtasks?.length ? task.subtasks.length + 1 : 1}</span>
+              </span>
             </div>
           </div>
 
