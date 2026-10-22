@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { ChatMessage, AssistantAction } from '../../types/daybridge';
 import { ActionBadge } from '../common/ActionBadge';
-import { AlexaOrb } from '../brand/AlexaOrb';
-import { Send, Mic, Sparkles, AlertCircle, Bot, User, CheckCircle2 } from 'lucide-react';
+import { PipelineTrace } from '../common/PipelineTrace';
+import type { PipelineStage } from '../common/PipelineTrace';
+import { DiffRow } from '../primitives/DiffRow';
+import { Logo } from '../brand/Logo';
+import { ArrowUp, Mic, AlertCircle, Check, ArrowRight } from 'lucide-react';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -22,8 +25,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   error
 }) => {
   const [inputText, setInputText] = useState('');
-  const [isSimulatedListening, setIsSimulatedListening] = useState(false);
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -33,24 +38,117 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     scrollToBottom();
   }, [messages, isLoading]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Auto-resize textarea height to accommodate up to 5 lines comfortably
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      const scrollHeight = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
+    }
+  }, [inputText]);
+
+  // Global keyboard shortcut: "/" or "Cmd+K" to focus composer
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInputActive =
+        activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
+
+      if (!isInputActive) {
+        if (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k')) {
+          e.preventDefault();
+          textareaRef.current?.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!inputText.trim() || isLoading) return;
     onSendMessage(inputText.trim());
     setInputText('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '44px';
+    }
   };
 
   const handlePromptClick = (prompt: string) => {
     onSendMessage(prompt);
   };
 
-  const handleSimulateVoice = () => {
-    setIsSimulatedListening(true);
+  const handleToggleVoice = () => {
+    if (isVoiceListening) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {
+          // Ignore error on stop
+        }
+      }
+      setIsVoiceListening(false);
+      return;
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+          setIsVoiceListening(true);
+        };
+
+        recognition.onresult = (event: any) => {
+          const transcript = Array.from(event.results)
+            .map((res: any) => res[0].transcript)
+            .join('');
+          setInputText(transcript);
+        };
+
+        recognition.onerror = () => {
+          setIsVoiceListening(false);
+        };
+
+        recognition.onend = () => {
+          setIsVoiceListening(false);
+          textareaRef.current?.focus();
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+        return;
+      } catch {
+        // Fallback gracefully to demo simulation
+      }
+    }
+
+    // Graceful fallback for environments without microphone permissions or Web Speech API
+    setIsVoiceListening(true);
     setTimeout(() => {
-      setIsSimulatedListening(false);
-      setInputText('Help me prepare for a software engineering interview on Friday. I have one hour each evening.');
+      setIsVoiceListening(false);
+      setInputText(
+        'Help me prepare for a software engineering interview on Friday. I have one hour each evening.'
+      );
+      textareaRef.current?.focus();
     }, 1200);
   };
+
+  const pipelineStage: PipelineStage = isVoiceListening
+    ? 'heard'
+    : isLoading
+    ? 'acting'
+    : 'idle';
+
+  const isInitialState = messages.length === 0;
 
   return (
     <div
@@ -58,82 +156,120 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        backgroundColor: 'var(--bg-surface)',
-        borderRadius: 'var(--radius-xl)',
-        border: '1px solid var(--border-subtle)',
-        overflow: 'hidden',
-        boxShadow: 'var(--card-shadow)'
+        backgroundColor: 'var(--color-bg-surface)',
+        overflow: 'hidden'
       }}
     >
-      {/* Alexa+ Ambient Status Header */}
+      {/* Calm Header with Pipeline Cue */}
       <div
         style={{
-          padding: '16px 20px',
-          borderBottom: '1px solid var(--border-subtle)',
+          padding: '14px 24px',
+          borderBottom: '1px solid var(--color-border-default)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'linear-gradient(180deg, rgba(14, 165, 233, 0.08) 0%, rgba(14, 165, 233, 0) 100%)'
+          backgroundColor: 'var(--color-bg-surface)',
+          minHeight: '52px'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Animated Alexa+ Ambient Orb */}
-          <AlexaOrb
-            state={isSimulatedListening ? 'listening' : isLoading ? 'thinking' : 'idle'}
-            size="md"
-          />
-
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#FFF' }}>Alexa+ Assistant</span>
-              <span
-                style={{
-                  fontSize: '0.65rem',
-                  fontFamily: 'var(--font-mono)',
-                  color: 'var(--brand-teal)',
-                  backgroundColor: 'rgba(0, 212, 170, 0.1)',
-                  padding: '1px 6px',
-                  borderRadius: 'var(--radius-full)',
-                  fontWeight: 600
-                }}
-              >
-                SIMULATED
-              </span>
-            </div>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              {isSimulatedListening ? 'Listening to voice...' : isLoading ? 'Structuring response...' : 'Ready for your request'}
-            </p>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: 'var(--font-size-label)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            Assistant
+          </span>
+          <span style={{ color: 'var(--color-border-strong)' }}>·</span>
+          <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)', margin: 0 }}>
+            {isVoiceListening ? 'Listening...' : isLoading ? 'Structuring plan...' : 'Turn intentions into action'}
+          </p>
         </div>
+
+        {/* Pipeline Trace indicator */}
+        <PipelineTrace stage={pipelineStage} toolName={isLoading ? 'create_plan' : undefined} />
       </div>
 
       {/* Messages Feed */}
       <div
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-label="Conversation thread"
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '20px',
+          padding: '24px 24px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px'
+          gap: '20px'
         }}
       >
-        {messages.length === 0 && (
+        {/* Welcome Block (The 30-Second Test - Section 9) */}
+        {isInitialState && (
           <div
             style={{
-              margin: 'auto',
-              textAlign: 'center',
-              maxWidth: '320px',
-              padding: '20px'
+              padding: '12px 0 16px',
+              borderBottom: '1px solid var(--color-border-default)',
+              marginBottom: '4px'
             }}
           >
-            <Bot size={36} color="var(--brand-cyan)" style={{ marginBottom: '12px', opacity: 0.8 }} />
-            <h4 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '6px', color: '#FFF' }}>
-              Say it. Plan it. Get it done.
-            </h4>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Ask me to build a realistic timeline, organize an interview prep schedule, or adjust existing tasks.
+            <h2
+              style={{
+                fontFamily: 'var(--font-ui)',
+                fontSize: '24px',
+                fontWeight: 600,
+                color: 'var(--color-text-primary)',
+                marginBottom: '6px',
+                letterSpacing: '-0.02em'
+              }}
+            >
+              What do you want to get done?
+            </h2>
+            <p
+              style={{
+                fontSize: '14px',
+                color: 'var(--color-text-secondary)',
+                lineHeight: '22px',
+                margin: '0 0 16px 0'
+              }}
+            >
+              Tell me the goal and how much time you have. I'll build the plan.
             </p>
+
+            {/* Prominent Stacked PromptChips (44px high each, full-width) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {suggestedPrompts.slice(0, 3).map((prompt, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handlePromptClick(prompt)}
+                  style={{
+                    minHeight: '44px',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--color-border-default)',
+                    backgroundColor: 'var(--color-bg-sunken)',
+                    color: 'var(--color-text-primary)',
+                    fontSize: '13px',
+                    lineHeight: '18px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    transition: 'all var(--duration-fast) var(--ease-standard)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-action-primary)';
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-surface)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-border-default)';
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-sunken)';
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>{prompt}</span>
+                  <ArrowRight size={14} color="var(--color-action-primary)" style={{ flexShrink: 0 }} />
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -144,96 +280,130 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               key={msg.id}
               style={{
                 display: 'flex',
-                gap: '10px',
+                gap: '12px',
                 alignSelf: isUser ? 'flex-end' : 'flex-start',
-                maxWidth: '88%'
+                maxWidth: isUser ? '85%' : '100%',
+                alignItems: 'flex-start'
               }}
             >
               {!isUser && (
-                <div
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(14, 165, 233, 0.15)',
-                    border: '1px solid var(--border-brand)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}
-                >
-                  <Bot size={14} color="var(--brand-cyan)" />
+                <div style={{ marginTop: '3px', flexShrink: 0 }}>
+                  <Logo size="sm" showWordmark={false} />
                 </div>
               )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-                <div
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 'var(--radius-lg)',
-                    borderTopRightRadius: isUser ? '2px' : 'var(--radius-lg)',
-                    borderTopLeftRadius: !isUser ? '2px' : 'var(--radius-lg)',
-                    backgroundColor: isUser ? 'rgba(14, 165, 233, 0.2)' : 'var(--bg-card)',
-                    border: `1px solid ${isUser ? 'rgba(14, 165, 233, 0.4)' : 'var(--border-subtle)'}`,
-                    color: '#FFFFFF',
-                    fontSize: '0.88rem',
-                    lineHeight: 1.5,
-                    whiteSpace: 'pre-wrap'
-                  }}
-                >
-                  {msg.content}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', width: '100%' }}>
+                {isUser ? (
+                  // User: Sunken bubble, right-aligned, 80-85% max
+                  <div
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: 'var(--radius-xl)',
+                      backgroundColor: 'var(--color-bg-sunken)',
+                      border: '1px solid var(--color-border-default)',
+                      color: 'var(--color-text-primary)',
+                      fontSize: 'var(--font-size-body-lg)',
+                      lineHeight: 'var(--line-height-body-lg)',
+                      whiteSpace: 'pre-wrap'
+                    }}
+                  >
+                    {msg.content}
+                  </div>
+                ) : (
+                  // Assistant: No speech bubble, clean editorial typography
+                  <div
+                    style={{
+                      color: 'var(--color-text-primary)',
+                      fontSize: 'var(--font-size-body-lg)',
+                      lineHeight: 'var(--line-height-body-lg)',
+                      whiteSpace: 'pre-wrap',
+                      width: '100%'
+                    }}
+                  >
+                    {msg.content}
 
-                  {/* Inline Action Card if message executed or suggested an action */}
-                  {msg.action && (
-                    <div
-                      style={{
-                        marginTop: '10px',
-                        padding: '10px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                        border: '1px solid var(--border-medium)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '6px'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                        <ActionBadge state={msg.action.state} label={msg.action.label} size="sm" />
+                    {/* Inline Action Card if message executed or suggested an action */}
+                    {msg.action && (
+                      <div
+                        style={{
+                          marginTop: '12px',
+                          padding: '14px 16px',
+                          borderRadius: 'var(--radius-lg)',
+                          backgroundColor:
+                            msg.action.state === 'suggested'
+                              ? 'var(--color-state-suggested-bg)'
+                              : msg.action.state === 'awaiting_confirmation'
+                              ? 'var(--color-state-awaiting-bg)'
+                              : msg.action.state === 'completed'
+                              ? 'var(--color-state-completed-bg)'
+                              : 'var(--color-bg-surface)',
+                          border: `1px solid ${
+                            msg.action.state === 'suggested'
+                              ? 'var(--color-state-suggested-border)'
+                              : msg.action.state === 'awaiting_confirmation'
+                              ? 'var(--color-state-awaiting-border)'
+                              : msg.action.state === 'completed'
+                              ? 'var(--color-state-completed-border)'
+                              : 'var(--color-border-default)'
+                          }`,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <ActionBadge state={msg.action.state} label={msg.action.label} size="sm" />
+                        </div>
+                        <p style={{ fontSize: 'var(--font-size-body)', color: 'var(--color-text-secondary)', margin: 0 }}>
+                          {msg.action.description}
+                        </p>
+
+                        {/* Proposed Diff Rows if changes are listed */}
+                        {msg.action.changes && msg.action.changes.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                            {msg.action.changes.map((ch, idx) => (
+                              <DiffRow
+                                key={idx}
+                                field={ch.title}
+                                before={ch.before?.estimatedMinutes ? `${ch.before.estimatedMinutes}m` : undefined}
+                                after={ch.detail || (ch.after?.estimatedMinutes ? `${ch.after.estimatedMinutes}m` : '')}
+                                changeType={ch.kind === 'changed' ? 'modified' : ch.kind}
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {(msg.action.state === 'suggested' || msg.action.state === 'awaiting_confirmation') && onApplyAction && (
+                          <button
+                            onClick={() => onApplyAction(msg.action!)}
+                            style={{
+                              alignSelf: 'flex-start',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              marginTop: '4px',
+                              padding: '6px 14px',
+                              backgroundColor: 'var(--color-action-primary)',
+                              color: 'var(--color-action-on-primary)',
+                              border: 'none',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: 'var(--font-size-label)',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Check size={13} /> Confirm changes
+                          </button>
+                        )}
                       </div>
-                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                        {msg.action.description}
-                      </p>
-                      {msg.action.state === 'suggested' && onApplyAction && (
-                        <button
-                          onClick={() => onApplyAction(msg.action!)}
-                          style={{
-                            alignSelf: 'flex-start',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            marginTop: '4px',
-                            padding: '4px 10px',
-                            backgroundColor: '#FDBA74',
-                            color: '#1A1208',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <CheckCircle2 size={11} /> Confirm & Update Plan
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
 
                 <span
                   style={{
-                    fontSize: '0.68rem',
-                    color: 'var(--text-dim)',
+                    fontSize: 'var(--font-size-caption)',
+                    color: 'var(--color-text-tertiary)',
                     marginTop: '4px',
                     fontFamily: 'var(--font-mono)'
                   }}
@@ -241,77 +411,34 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   {msg.timestamp}
                 </span>
               </div>
-
-              {isUser && (
-                <div
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid var(--border-subtle)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}
-                >
-                  <User size={14} color="#FFF" />
-                </div>
-              )}
             </div>
           );
         })}
 
         {isLoading && (
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <div
-              style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(14, 165, 233, 0.15)',
-                border: '1px solid var(--border-brand)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <Bot size={14} color="var(--brand-cyan)" />
-            </div>
-            <div
-              style={{
-                padding: '10px 16px',
-                borderRadius: 'var(--radius-lg)',
-                backgroundColor: 'var(--bg-card)',
-                border: '1px solid var(--border-subtle)',
-                display: 'flex',
-                gap: '5px',
-                alignItems: 'center'
-              }}
-            >
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--brand-cyan)', animation: 'bounce 1s infinite 0ms' }} />
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--brand-teal)', animation: 'bounce 1s infinite 200ms' }} />
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--brand-cyan)', animation: 'bounce 1s infinite 400ms' }} />
-            </div>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <Logo size="sm" />
+            <span style={{ fontSize: 'var(--font-size-body)', color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>
+              Building your plan...
+            </span>
           </div>
         )}
 
         {error && (
           <div
             style={{
-              padding: '10px 14px',
+              padding: '12px 16px',
               borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(244, 63, 94, 0.12)',
-              border: '1px solid var(--state-failed-border)',
-              color: 'var(--state-failed-text)',
-              fontSize: '0.8rem',
+              backgroundColor: 'var(--color-state-failed-bg)',
+              border: '1px solid var(--color-state-failed-border)',
+              color: 'var(--color-state-failed-text)',
+              fontSize: 'var(--font-size-body)',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '10px'
             }}
           >
-            <AlertCircle size={14} />
+            <AlertCircle size={16} />
             <span>{error}</span>
           </div>
         )}
@@ -319,127 +446,140 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggested Prompts (PRD Section 5.1 & 10) */}
-      {suggestedPrompts.length > 0 && (
+      {/* Contextual Follow-up Chips for Active Conversation */}
+      {!isInitialState && suggestedPrompts.length > 0 && (
         <div
           style={{
-            padding: '8px 16px',
-            borderTop: '1px solid var(--border-subtle)',
-            backgroundColor: 'rgba(0, 0, 0, 0.2)',
+            padding: '8px 24px',
             display: 'flex',
             gap: '8px',
-            overflowX: 'auto',
-            whiteSpace: 'nowrap'
+            flexWrap: 'wrap',
+            backgroundColor: 'var(--color-bg-surface)',
+            borderTop: '1px solid var(--color-border-default)'
           }}
         >
-          {suggestedPrompts.map((prompt, idx) => (
+          {suggestedPrompts.slice(0, 3).map((prompt, idx) => (
             <button
               key={idx}
               onClick={() => handlePromptClick(prompt)}
-              disabled={isLoading}
               style={{
-                fontSize: '0.75rem',
-                color: 'var(--text-secondary)',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-full)',
-                padding: '4px 12px',
+                fontSize: '12px',
+                color: 'var(--color-text-secondary)',
+                backgroundColor: 'var(--color-bg-sunken)',
+                border: '1px solid var(--color-border-default)',
+                borderRadius: 'var(--radius-pill)',
+                padding: '5px 12px',
                 cursor: 'pointer',
-                transition: 'var(--transition-fast)',
+                transition: 'all var(--duration-fast) var(--ease-standard)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--brand-cyan)';
-                e.currentTarget.style.color = '#FFF';
+                e.currentTarget.style.borderColor = 'var(--color-action-primary)';
+                e.currentTarget.style.color = 'var(--color-text-primary)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.borderColor = 'var(--color-border-default)';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
               }}
             >
-              <Sparkles size={11} color="var(--brand-teal)" />
-              {prompt}
+              <span>{prompt}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* Input Form */}
+      {/* Composer Input Form (56px min height per Section 7 & 8) */}
       <form
         onSubmit={handleSubmit}
         style={{
-          padding: '14px 16px',
-          borderTop: '1px solid var(--border-subtle)',
-          backgroundColor: 'rgba(18, 24, 38, 0.95)',
+          padding: '12px 24px',
+          borderTop: isInitialState || suggestedPrompts.length === 0 ? '1px solid var(--color-border-default)' : 'none',
+          backgroundColor: 'var(--color-bg-surface)',
           display: 'flex',
           gap: '10px',
-          alignItems: 'center'
+          alignItems: 'flex-end',
+          minHeight: '56px'
         }}
       >
         <button
           type="button"
-          onClick={handleSimulateVoice}
-          title="Simulate Alexa voice command"
+          onClick={handleToggleVoice}
+          title={isVoiceListening ? 'Stop listening' : 'Voice request (Web Speech API)'}
+          aria-label="Voice input"
           style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: isSimulatedListening ? 'rgba(0, 212, 170, 0.2)' : 'rgba(255, 255, 255, 0.06)',
-            border: `1px solid ${isSimulatedListening ? 'var(--brand-teal)' : 'var(--border-subtle)'}`,
-            color: isSimulatedListening ? 'var(--brand-teal)' : 'var(--text-secondary)',
+            width: '44px',
+            height: '44px',
+            borderRadius: 'var(--radius-pill)',
+            backgroundColor: isVoiceListening ? 'var(--color-state-awaiting-bg)' : 'var(--color-bg-sunken)',
+            border: `1px solid ${isVoiceListening ? 'var(--color-state-awaiting-border)' : 'var(--color-border-default)'}`,
+            color: isVoiceListening ? 'var(--color-state-awaiting-text)' : 'var(--color-text-secondary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
             flexShrink: 0,
-            transition: 'var(--transition-fast)'
+            transition: 'all var(--duration-fast) var(--ease-standard)'
           }}
         >
-          <Mic size={16} />
+          <Mic size={18} />
         </button>
 
-        <input
-          type="text"
+        <textarea
+          ref={textareaRef}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Ask Alexa+ to plan, reschedule, or add a task..."
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+          placeholder="Say it or type it... (Press / to focus, Shift+Enter for newline)"
           disabled={isLoading}
+          rows={1}
           style={{
             flex: 1,
-            backgroundColor: 'rgba(0, 0, 0, 0.3)',
-            border: '1px solid var(--border-medium)',
-            borderRadius: 'var(--radius-md)',
-            padding: '10px 14px',
-            color: '#FFFFFF',
-            fontSize: '0.88rem',
+            minHeight: '44px',
+            maxHeight: '120px',
+            backgroundColor: 'var(--color-bg-sunken)',
+            border: '1px solid var(--color-border-default)',
+            borderRadius: 'var(--radius-xl)',
+            padding: '10px 16px',
+            color: 'var(--color-text-primary)',
+            fontSize: 'var(--font-size-body-lg)',
             outline: 'none',
-            fontFamily: 'inherit'
+            resize: 'none',
+            lineHeight: '22px',
+            fontFamily: 'var(--font-ui)',
+            transition: 'border-color var(--duration-fast) var(--ease-standard)'
           }}
-          onFocus={(e) => (e.target.style.borderColor = 'var(--brand-cyan)')}
-          onBlur={(e) => (e.target.style.borderColor = 'var(--border-medium)')}
+          onFocus={(e) => (e.target.style.borderColor = 'var(--color-focus-ring)')}
+          onBlur={(e) => (e.target.style.borderColor = 'var(--color-border-default)')}
         />
 
         <button
           type="submit"
           disabled={!inputText.trim() || isLoading}
+          title="Send request"
+          aria-label="Send request"
           style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: 'var(--radius-md)',
-            background: inputText.trim() && !isLoading ? 'var(--brand-gradient)' : 'rgba(255, 255, 255, 0.05)',
+            width: '44px',
+            height: '44px',
+            borderRadius: 'var(--radius-pill)',
+            backgroundColor: inputText.trim() && !isLoading ? 'var(--color-action-primary)' : 'var(--color-bg-sunken)',
+            color: inputText.trim() && !isLoading ? 'var(--color-action-on-primary)' : 'var(--color-text-tertiary)',
             border: 'none',
-            color: inputText.trim() && !isLoading ? '#0B0F1A' : 'var(--text-muted)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: inputText.trim() && !isLoading ? 'pointer' : 'default',
             flexShrink: 0,
-            transition: 'var(--transition-fast)'
+            transition: 'all var(--duration-fast) var(--ease-standard)'
           }}
         >
-          <Send size={15} />
+          <ArrowUp size={18} />
         </button>
       </form>
     </div>

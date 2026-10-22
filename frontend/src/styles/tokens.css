@@ -1,78 +1,181 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap');
 
 :root {
-  /* Brand Core Colors */
-  --brand-teal: #00D4AA;
-  --brand-cyan: #0EA5E9;
-  --brand-gradient: linear-gradient(135deg, #00D4AA 0%, #0EA5E9 100%);
-  --brand-gradient-hover: linear-gradient(135deg, #05e2b6 0%, #38bdf8 100%);
-  --brand-gradient-subtle: linear-gradient(135deg, rgba(0, 212, 170, 0.12) 0%, rgba(14, 165, 233, 0.12) 100%);
-  
-  /* Accent Colors */
-  --accent-lavender: #D8B4FE;
-  --accent-lavender-subtle: rgba(216, 180, 254, 0.15);
-  --accent-peach: #FDBA74;
-  --accent-peach-subtle: rgba(253, 186, 116, 0.15);
+  /* Surfaces & Canvas (Light: Cool Neutral Scale) */
+  --color-bg-canvas: #F7F8F9;
+  --color-bg-surface: #FFFFFF;
+  --color-bg-raised: #FFFFFF;
+  --color-bg-sunken: #F0F2F4;
+  --color-border-default: #E3E6EA;
+  --color-border-strong: #858E99;
 
-  /* Surface / Canvas Hierarchy */
-  --bg-canvas: #0B0F1A;
-  --bg-surface: #121826;
-  --bg-surface-elevated: #182236;
-  --bg-surface-glass: rgba(18, 24, 38, 0.72);
-  --bg-card: rgba(24, 34, 54, 0.6);
-  --bg-card-hover: rgba(30, 43, 68, 0.75);
+  /* Text & Ink (Light) */
+  --color-text-primary: #12161B;
+  --color-text-secondary: #4B5560;
+  --color-text-tertiary: #5F6873;
 
-  /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-medium: rgba(255, 255, 255, 0.14);
-  --border-brand: rgba(14, 165, 233, 0.35);
-  --border-focus: rgba(0, 212, 170, 0.6);
+  /* Primary Brand Action (Harbor) */
+  --color-action-primary: #0F6F6B;
+  --color-action-primary-hover: #0B5956;
+  --color-action-on-primary: #FFFFFF;
+  --color-focus-ring: #0F6F6B;
+  --color-accent-highlight: #0F6F6B;
 
-  /* Typography Colors */
-  --text-primary: #FFFFFF;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --text-dim: #475569;
+  /* Action States (Light Mode Triples) */
+  --color-state-suggested-bg: #EEF8F7;
+  --color-state-suggested-border: #7FCBC5;
+  --color-state-suggested-text: #0B5956;
 
-  /* State Colors (PRD Action Status) */
-  --state-suggested-border: #FDBA74;
-  --state-suggested-bg: rgba(253, 186, 116, 0.1);
-  --state-suggested-text: #FED7AA;
+  --color-state-awaiting-bg: #FDF0DA;
+  --color-state-awaiting-border: #F2A33A;
+  --color-state-awaiting-text: #8A5300;
 
-  --state-awaiting-border: #D8B4FE;
-  --state-awaiting-bg: rgba(216, 180, 254, 0.12);
-  --state-awaiting-text: #E9D5FF;
+  --color-state-running-bg: #F0F2F4;
+  --color-state-running-border: #E3E6EA;
+  --color-state-running-text: #4B5560;
 
-  --state-completed-border: #00D4AA;
-  --state-completed-bg: rgba(0, 212, 170, 0.1);
-  --state-completed-text: #5EEAD4;
+  --color-state-completed-bg: #E3F4EA;
+  --color-state-completed-border: #8CCBA9;
+  --color-state-completed-text: #1F7A4D;
 
-  --state-failed-border: #F43F5E;
-  --state-failed-bg: rgba(244, 63, 94, 0.12);
-  --state-failed-text: #FDA4AF;
+  --color-state-failed-bg: #FBE9E7;
+  --color-state-failed-border: #E8A29C;
+  --color-state-failed-text: #B3261E;
 
-  /* Alexa+ Ring Glow Accents */
-  --alexa-glow: 0 0 25px rgba(14, 165, 233, 0.3);
-  --alexa-glow-strong: 0 0 45px rgba(0, 212, 170, 0.45);
-  --card-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.5);
+  /* Spacing Scale (4px base) */
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radii per Section 7 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+
+  /* Elevation (Light) */
+  --elevation-e0: none;
+  --elevation-e2: 0 8px 24px rgba(11, 14, 17, 0.12);
 
   /* Typography Families */
-  --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-ui: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, Menlo, monospace;
 
-  /* Radii */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  --radius-full: 9999px;
+  /* Typography Sizes & Line Heights (Desktop) */
+  --font-size-display: 32px;
+  --line-height-display: 40px;
+  --letter-spacing-display: -0.02em;
 
-  /* Transitions */
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-spring: 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  --font-size-h1: 24px;
+  --line-height-h1: 32px;
+  --letter-spacing-h1: -0.02em;
+
+  --font-size-h2: 18px;
+  --line-height-h2: 26px;
+
+  --font-size-h3: 15px;
+  --line-height-h3: 22px;
+
+  --font-size-body-lg: 16px;
+  --line-height-body-lg: 26px;
+
+  --font-size-body: 14px;
+  --line-height-body: 22px;
+
+  --font-size-label: 13px;
+  --line-height-label: 18px;
+
+  --font-size-caption: 12px;
+  --line-height-caption: 16px;
+
+  --font-size-data: 12px;
+  --line-height-data: 16px;
+
+  /* Motion Tokens */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --duration-fade: 1200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 1, 1);
+
+  /* Layout dimensions */
+  --layout-chat-max: 680px;
+  --layout-plan-panel: 440px;
+  --layout-saved-rail: 264px;
+  --layout-header: 56px;
+  --target-touch: 44px;
 }
 
+[data-theme='dark'] {
+  /* Surfaces & Canvas (Dark: Gray 950, 900, 800) */
+  --color-bg-canvas: #0B0E11;
+  --color-bg-surface: #12161B;
+  --color-bg-raised: #1C2229;
+  --color-bg-sunken: #1C2229;
+  --color-border-default: #2B323A;
+  --color-border-strong: #667280;
+
+  /* Text & Ink (Dark) */
+  --color-text-primary: #F7F8F9;
+  --color-text-secondary: #CDD2D8;
+  --color-text-tertiary: #9AA2AB;
+
+  /* Primary Brand Action (Harbor Dark) */
+  --color-action-primary: #4FC2BB;
+  --color-action-primary-hover: #7FCBC5;
+  --color-action-on-primary: #0B0E11;
+  --color-focus-ring: #4FC2BB;
+  --color-accent-highlight: #4FC2BB;
+
+  /* Action States (Dark Mode Triples) */
+  --color-state-suggested-bg: #112624;
+  --color-state-suggested-border: #1E5F5B;
+  --color-state-suggested-text: #7FDDD6;
+
+  --color-state-awaiting-bg: #2B2113;
+  --color-state-awaiting-border: #7A5A22;
+  --color-state-awaiting-text: #F5B24D;
+
+  --color-state-running-bg: #1C2229;
+  --color-state-running-border: #2B323A;
+  --color-state-running-text: #CDD2D8;
+
+  --color-state-completed-bg: #10261B;
+  --color-state-completed-border: #2E6B4A;
+  --color-state-completed-text: #5FCB92;
+
+  --color-state-failed-bg: #2C1513;
+  --color-state-failed-border: #8A3A34;
+  --color-state-failed-text: #FF8A80;
+
+  /* Elevation (Dark) */
+  --elevation-e0: none;
+  --elevation-e2: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Reduced Motion Override */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Base resets & typography */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -80,31 +183,25 @@
 }
 
 body {
-  font-family: var(--font-family);
-  background-color: var(--bg-canvas);
-  color: var(--text-primary);
-  line-height: 1.5;
+  font-family: var(--font-ui);
+  background-color: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-body);
+  font-size: var(--font-size-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--duration-base) var(--ease-standard),
+              color var(--duration-base) var(--ease-standard);
   min-height: 100vh;
-  overflow-x: hidden;
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* Tabular figures for numbers/counters */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-full);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+/* Keyboard focus ring per Section 7 */
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }

@@ -1,77 +1,93 @@
 import React from 'react';
 import type { ActionExecutionState } from '../../types/daybridge';
-import { Sparkles, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { Lightbulb, CircleDashed, LoaderCircle, CircleCheck, CircleX } from 'lucide-react';
 
 interface ActionBadgeProps {
-  state: ActionExecutionState;
+  state: ActionExecutionState | 'running';
   label?: string;
   size?: 'sm' | 'md';
 }
 
-export const ActionBadge: React.FC<ActionBadgeProps> = ({ 
-  state, 
-  label, 
-  size = 'md' 
+export const ActionBadge: React.FC<ActionBadgeProps> = ({
+  state,
+  label,
+  size = 'md'
 }) => {
   const config = {
     suggested: {
-      defaultLabel: 'Suggested Action',
-      icon: Sparkles,
-      borderColor: 'var(--state-suggested-border)',
-      bgColor: 'var(--state-suggested-bg)',
-      textColor: 'var(--state-suggested-text)',
-      glow: '0 0 12px rgba(253, 186, 116, 0.25)'
+      defaultLabel: 'Suggested',
+      icon: Lightbulb,
+      bg: 'var(--color-state-suggested-bg)',
+      border: 'var(--color-state-suggested-border)',
+      text: 'var(--color-state-suggested-text)'
     },
     awaiting_confirmation: {
-      defaultLabel: 'Awaiting Confirmation',
-      icon: AlertCircle,
-      borderColor: 'var(--state-awaiting-border)',
-      bgColor: 'var(--state-awaiting-bg)',
-      textColor: 'var(--state-awaiting-text)',
-      glow: '0 0 14px rgba(216, 180, 254, 0.3)'
+      defaultLabel: 'Awaiting confirmation',
+      icon: CircleDashed,
+      bg: 'var(--color-state-awaiting-bg)',
+      border: 'var(--color-state-awaiting-border)',
+      text: 'var(--color-state-awaiting-text)'
+    },
+    running: {
+      defaultLabel: 'Running',
+      icon: LoaderCircle,
+      bg: 'var(--color-state-running-bg)',
+      border: 'var(--color-state-running-border)',
+      text: 'var(--color-state-running-text)'
     },
     completed: {
-      defaultLabel: 'Executed & Saved',
-      icon: CheckCircle2,
-      borderColor: 'var(--state-completed-border)',
-      bgColor: 'var(--state-completed-bg)',
-      textColor: 'var(--state-completed-text)',
-      glow: '0 0 12px rgba(0, 212, 170, 0.25)'
+      defaultLabel: 'Completed',
+      icon: CircleCheck,
+      bg: 'var(--color-state-completed-bg)',
+      border: 'var(--color-state-completed-border)',
+      text: 'var(--color-state-completed-text)'
     },
     failed: {
       defaultLabel: 'Failed',
-      icon: XCircle,
-      borderColor: 'var(--state-failed-border)',
-      bgColor: 'var(--state-failed-bg)',
-      textColor: 'var(--state-failed-text)',
-      glow: '0 0 12px rgba(244, 63, 94, 0.25)'
+      icon: CircleX,
+      bg: 'var(--color-state-failed-bg)',
+      border: 'var(--color-state-failed-border)',
+      text: 'var(--color-state-failed-text)'
     }
-  }[state];
+  }[state as string] || {
+    defaultLabel: 'Suggested',
+    icon: Lightbulb,
+    bg: 'var(--color-state-suggested-bg)',
+    border: 'var(--color-state-suggested-border)',
+    text: 'var(--color-state-suggested-text)'
+  };
 
   const Icon = config.icon;
   const isSm = size === 'sm';
 
   return (
     <span
+      role={state === 'failed' ? 'alert' : 'status'}
+      aria-live="polite"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: isSm ? '4px' : '6px',
-        padding: isSm ? '2px 8px' : '4px 12px',
-        borderRadius: 'var(--radius-full)',
-        border: `1px solid ${config.borderColor}`,
-        backgroundColor: config.bgColor,
-        color: config.textColor,
-        fontSize: isSm ? '0.72rem' : '0.8rem',
+        padding: isSm ? '2px 8px' : '4px 10px',
+        borderRadius: 'var(--radius-pill)',
+        border: `1px solid ${config.border}`,
+        backgroundColor: config.bg,
+        color: config.text,
+        fontSize: isSm ? 'var(--font-size-caption)' : 'var(--font-size-label)',
         fontWeight: 600,
-        fontFamily: 'var(--font-mono)',
-        textTransform: 'uppercase',
-        letterSpacing: '0.04em',
-        boxShadow: config.glow,
-        transition: 'var(--transition-fast)'
+        fontFamily: 'var(--font-ui)',
+        lineHeight: 1.2,
+        letterSpacing: '-0.01em',
+        transition: 'background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard)'
       }}
     >
-      <Icon size={isSm ? 12 : 14} />
+      <Icon
+        size={isSm ? 13 : 15}
+        strokeWidth={1.75}
+        style={{
+          animation: state === 'running' ? 'spin 1.8s linear infinite' : 'none'
+        }}
+      />
       <span>{label || config.defaultLabel}</span>
     </span>
   );

@@ -1,36 +1,42 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Plan, Task, ChatMessage, AssistantAction } from './types/daybridge';
 import { Logo } from './components/brand/Logo';
 import { ChatPanel } from './components/chat/ChatPanel';
 import { PlanCanvas } from './components/plan/PlanCanvas';
 import { SavedPlansDrawer } from './components/saved/SavedPlansDrawer';
-import { DesignSystemModal } from './components/design-system/DesignSystemModal';
+import { TokenSwatchPage } from './components/design-system/TokenSwatchPage';
 import { apiService, INITIAL_INTERVIEW_PREP_PLAN } from './services/api';
-import { Bookmark, RotateCcw, MessageSquare, LayoutGrid, Sparkles, Palette } from 'lucide-react';
+import { useTheme } from './context/ThemeContext';
+import { Bookmark, RotateCcw, MessageSquare, LayoutGrid, Palette, Sun, Moon, Plus } from 'lucide-react';
 
 export const App: React.FC = () => {
+  const { theme, toggleTheme } = useTheme();
   const [activePlan, setActivePlan] = useState<Plan | null>(INITIAL_INTERVIEW_PREP_PLAN);
   const [savedPlans, setSavedPlans] = useState<Plan[]>([]);
   const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
-  const [isDesignSystemOpen, setIsDesignSystemOpen] = useState(false);
+  const [isDesignSystemOpen, setIsDesignSystemOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return (
+        window.location.pathname.startsWith('/design') ||
+        window.location.search.includes('view=tokens') ||
+        window.location.search.includes('design')
+      );
+    }
+    return false;
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<AssistantAction | undefined>(undefined);
   const [mobileTab, setMobileTab] = useState<'chat' | 'plan'>('chat');
 
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome-1',
-      role: 'assistant',
-      content: 'Welcome to Daybridge. Tell me your intention or deadline, and I will structure it into an actionable plan.',
-      timestamp: 'Just now'
-    }
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([
     'Help me prepare for a software engineering interview on Friday. I have one hour each evening.',
+    'Start planning ritual',
+    'Review workload capacity',
     'Make the first day easier and add a mock interview',
-    'I only have 30 minutes today. Adjust my schedule'
+    'Start daily shutdown'
   ]);
 
   // Load saved plans on mount
@@ -62,34 +68,38 @@ export const App: React.FC = () => {
         currentPlanId: activePlan?.id
       });
 
+      const messageText = typeof response.message === 'string' ? response.message : response.message.text;
+      const spokenText = typeof response.message === 'object' ? response.message.spoken : undefined;
+
       const assistantMsg: ChatMessage = {
         id: `msg-resp-${Date.now()}`,
         role: 'assistant',
-        content: response.message,
+        content: messageText,
+        spoken: spokenText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        action: response.action,
-        plan: response.plan
+        trace: response.trace,
+        action: response.action || undefined,
+        plan: response.plan || undefined
       };
 
       setChatMessages((prev) => [...prev, assistantMsg]);
 
-      // If response includes a plan
       if (response.plan) {
-        if (response.action?.state === 'suggested') {
-          // Keep active plan, set pending action for user approval
+        if (response.action?.state === 'suggested' || response.action?.state === 'awaiting_confirmation') {
           setPendingAction(response.action);
         } else {
-          // Immediately apply if confirmed or created
           setActivePlan(response.plan);
           if (response.action) setPendingAction(response.action);
         }
+      } else if (response.action?.state === 'awaiting_confirmation') {
+        setPendingAction(response.action);
       }
 
       if (response.suggestedFollowUps && response.suggestedFollowUps.length > 0) {
         setSuggestedPrompts(response.suggestedFollowUps);
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to communicate with the assistant. Please try again.');
+      setErrorMessage(err?.message || "Couldn't complete request. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -131,6 +141,39 @@ export const App: React.FC = () => {
     });
   };
 
+  // Update plan title inline
+  const handleUpdatePlanTitle = (newTitle: string) => {
+    if (!activePlan) return;
+    setActivePlan({
+      ...activePlan,
+      title: newTitle,
+      updatedAt: new Date().toISOString()
+    });
+  };
+
+  // Add new task manually
+  const handleAddNewTask = () => {
+    if (!activePlan) return;
+    const newTask: Task = {
+      id: `task-${Date.now()}`,
+      title: 'New task',
+      description: '',
+      day: activePlan.tasks[0]?.day || 'Monday',
+      minutes: 30,
+      estimatedMinutes: 30,
+      priority: 'medium',
+      done: false,
+      isCompleted: false,
+      position: activePlan.tasks.length,
+      orderIndex: activePlan.tasks.length
+    };
+    setActivePlan({
+      ...activePlan,
+      tasks: [...activePlan.tasks, newTask],
+      updatedAt: new Date().toISOString()
+    });
+  };
+
   // Apply suggested action
   const handleApplyAction = (action: AssistantAction) => {
     if (action.payload?.plan) {
@@ -139,13 +182,43 @@ export const App: React.FC = () => {
     setPendingAction({
       ...action,
       state: 'completed',
-      label: 'Action Applied'
+      label: 'Applied'
     });
   };
 
   // Dismiss action
   const handleDismissAction = () => {
     setPendingAction(undefined);
+  };
+
+  // Motion auto-cascade rebalance
+  const handleRebalanceSchedule = () => {
+    if (!activePlan) return;
+    const isAlreadyChunked = activePlan.tasks.some((t) => t.chunkPart);
+    if (isAlreadyChunked) {
+      setActivePlan(INITIAL_INTERVIEW_PREP_PLAN);
+      const restoreAction: AssistantAction = {
+        id: `act-${Date.now()}`,
+        type: 'reschedule_plan',
+        label: 'Schedule Restored',
+        description: 'Restored standard 60-minute daily capacity',
+        state: 'completed',
+        payload: INITIAL_INTERVIEW_PREP_PLAN
+      };
+      setPendingAction(restoreAction);
+    } else {
+      const rebalanced = apiService.rebalancePlan(activePlan, 30);
+      setActivePlan(rebalanced);
+      const cascadeAction: AssistantAction = {
+        id: `act-${Date.now()}`,
+        type: 'reschedule_plan',
+        label: 'Motion Cascade Applied',
+        description: 'Chunked Tuesday into 30m sprint and bumped Part 2 to Wednesday',
+        state: 'completed',
+        payload: rebalanced
+      };
+      setPendingAction(cascadeAction);
+    }
   };
 
   // Save active plan
@@ -155,17 +228,16 @@ export const App: React.FC = () => {
     const plans = await apiService.getPlans();
     setSavedPlans(plans);
 
-    // Add confirmation message in chat
     const confirmMsg: ChatMessage = {
       id: `save-confirm-${Date.now()}`,
       role: 'assistant',
-      content: `Your plan "${activePlan.title}" has been saved. You can access it anytime from the Saved Plans drawer.`,
+      content: `Saved "${activePlan.title}" to library.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       action: {
         id: `act-save-${Date.now()}`,
         type: 'update_plan',
-        label: 'Plan Saved',
-        description: 'Synchronized with persistent storage',
+        label: 'Saved',
+        description: 'Synchronized with local storage',
         state: 'completed'
       }
     };
@@ -189,21 +261,22 @@ export const App: React.FC = () => {
     }
   };
 
-  // Start a fresh conversation
+  // Reset conversation
   const handleResetSession = () => {
-    setChatMessages([
-      {
-        id: `welcome-${Date.now()}`,
-        role: 'assistant',
-        content: 'Session reset. What goal or deadline would you like to tackle today?',
-        timestamp: 'Just now'
-      }
-    ]);
+    setChatMessages([]);
     setActivePlan(null);
     setPendingAction(undefined);
   };
 
   const isCurrentPlanSaved = savedPlans.some((p) => p.id === activePlan?.id);
+
+  if (isDesignSystemOpen) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-bg-canvas)', overflowY: 'auto' }}>
+        <TokenSwatchPage onBack={() => setIsDesignSystemOpen(false)} />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -211,18 +284,19 @@ export const App: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
-        backgroundColor: 'var(--bg-canvas)',
-        color: 'var(--text-primary)',
-        overflow: 'hidden'
+        backgroundColor: 'var(--color-bg-canvas)',
+        color: 'var(--color-text-primary)',
+        overflow: 'hidden',
+        fontFamily: 'var(--font-ui)'
       }}
     >
       {/* Top Brand Navigation Header */}
+      {/* Top Brand Navigation Header (56px per Section 7) */}
       <header
         style={{
-          height: '64px',
-          borderBottom: '1px solid var(--border-subtle)',
-          backgroundColor: 'rgba(11, 15, 26, 0.95)',
-          backdropFilter: 'blur(12px)',
+          height: '56px',
+          borderBottom: '1px solid var(--color-border-default)',
+          backgroundColor: 'var(--color-bg-surface)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -230,108 +304,128 @@ export const App: React.FC = () => {
           zIndex: 100
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <Logo size="md" />
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '5px',
-              fontSize: '0.68rem',
-              fontFamily: 'var(--font-mono)',
-              color: 'var(--brand-teal)',
-              backgroundColor: 'rgba(0, 212, 170, 0.08)',
-              border: '1px solid rgba(0, 212, 170, 0.25)',
-              padding: '2px 8px',
-              borderRadius: 'var(--radius-full)',
-              letterSpacing: '0.04em'
-            }}
-          >
-            <Sparkles size={11} /> ALEXA+ SIMULATION
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Logo size="md" showWordmark={true} />
         </div>
 
         {/* Header Right Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* New Plan Trigger */}
           <button
-            onClick={() => setIsDesignSystemOpen(true)}
+            onClick={handleResetSession}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '7px 12px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(0, 212, 170, 0.08)',
-              border: '1px solid rgba(0, 212, 170, 0.25)',
-              color: 'var(--brand-teal)',
-              fontSize: '0.8rem',
+              backgroundColor: 'var(--color-action-primary)',
+              color: 'var(--color-action-on-primary)',
+              border: 'none',
+              fontSize: 'var(--font-size-label)',
               fontWeight: 600,
               cursor: 'pointer',
-              transition: 'var(--transition-fast)'
+              transition: 'all var(--duration-fast) var(--ease-standard)'
             }}
-            title="Explore Daybridge Design System & Tokens"
+            title="Start a new plan"
           >
-            <Palette size={14} />
-            <span>Design System</span>
+            <Plus size={14} strokeWidth={2.5} />
+            <span>New plan</span>
           </button>
 
+          {/* Saved Plans */}
           <button
             onClick={() => setIsSavedDrawerOpen(true)}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '7px 12px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-secondary)',
-              fontSize: '0.8rem',
-              fontWeight: 600,
+              backgroundColor: 'var(--color-bg-sunken)',
+              border: '1px solid var(--color-border-default)',
+              color: 'var(--color-text-secondary)',
+              fontSize: 'var(--font-size-label)',
+              fontWeight: 500,
               cursor: 'pointer',
-              transition: 'var(--transition-fast)'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#FFF';
-              e.currentTarget.style.borderColor = 'var(--brand-cyan)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-secondary)';
-              e.currentTarget.style.borderColor = 'var(--border-subtle)';
+              transition: 'all var(--duration-fast) var(--ease-standard)'
             }}
           >
             <Bookmark size={14} />
-            <span>Saved Plans</span>
+            <span>Saved plans</span>
             <span
+              className="tabular-nums"
               style={{
-                fontSize: '0.7rem',
-                backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                fontSize: '11px',
+                backgroundColor: 'var(--color-bg-surface)',
+                color: 'var(--color-text-primary)',
                 padding: '1px 6px',
-                borderRadius: 'var(--radius-full)',
-                fontFamily: 'var(--font-mono)'
+                borderRadius: 'var(--radius-sm)',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 600
               }}
             >
               {savedPlans.length}
             </span>
           </button>
 
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 10px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-default)',
+              backgroundColor: 'var(--color-bg-surface)',
+              color: 'var(--color-text-secondary)',
+              fontSize: 'var(--font-size-label)',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all var(--duration-fast) var(--ease-standard)'
+            }}
+            title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
+          >
+            {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+          </button>
+
+          {/* Design System Swatches */}
+          <button
+            onClick={() => setIsDesignSystemOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '6px 10px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'transparent',
+              border: '1px solid var(--color-border-default)',
+              color: 'var(--color-text-tertiary)',
+              fontSize: 'var(--font-size-label)',
+              cursor: 'pointer'
+            }}
+            title="Design System & Tokens"
+          >
+            <Palette size={14} />
+          </button>
+
+          {/* Reset Session */}
           <button
             onClick={handleResetSession}
             title="Reset conversation"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px',
-              padding: '7px 10px',
+              padding: '6px 10px',
               borderRadius: 'var(--radius-md)',
               backgroundColor: 'transparent',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-muted)',
-              fontSize: '0.8rem',
+              border: '1px solid var(--color-border-default)',
+              color: 'var(--color-text-tertiary)',
               cursor: 'pointer'
             }}
           >
-            <RotateCcw size={13} />
+            <RotateCcw size={14} />
           </button>
         </div>
       </header>
@@ -342,8 +436,8 @@ export const App: React.FC = () => {
         style={{
           display: 'none',
           padding: '8px 16px',
-          borderBottom: '1px solid var(--border-subtle)',
-          backgroundColor: 'var(--bg-surface)'
+          borderBottom: '1px solid var(--color-border-default)',
+          backgroundColor: 'var(--color-bg-surface)'
         }}
       >
         <button
@@ -351,9 +445,9 @@ export const App: React.FC = () => {
           style={{
             flex: 1,
             padding: '8px',
-            backgroundColor: mobileTab === 'chat' ? 'var(--brand-gradient)' : 'transparent',
-            color: mobileTab === 'chat' ? '#0B0F1A' : 'var(--text-secondary)',
-            fontWeight: 700,
+            backgroundColor: mobileTab === 'chat' ? 'var(--color-action-primary)' : 'transparent',
+            color: mobileTab === 'chat' ? 'var(--color-action-on-primary)' : 'var(--color-text-secondary)',
+            fontWeight: 600,
             border: 'none',
             borderRadius: 'var(--radius-sm)',
             cursor: 'pointer',
@@ -361,19 +455,19 @@ export const App: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            fontSize: '0.82rem'
+            fontSize: 'var(--font-size-label)'
           }}
         >
-          <MessageSquare size={14} /> Alexa+ Assistant
+          <MessageSquare size={14} /> Assistant
         </button>
         <button
           onClick={() => setMobileTab('plan')}
           style={{
             flex: 1,
             padding: '8px',
-            backgroundColor: mobileTab === 'plan' ? 'var(--brand-gradient)' : 'transparent',
-            color: mobileTab === 'plan' ? '#0B0F1A' : 'var(--text-secondary)',
-            fontWeight: 700,
+            backgroundColor: mobileTab === 'plan' ? 'var(--color-action-primary)' : 'transparent',
+            color: mobileTab === 'plan' ? 'var(--color-action-on-primary)' : 'var(--color-text-secondary)',
+            fontWeight: 600,
             border: 'none',
             borderRadius: 'var(--radius-sm)',
             cursor: 'pointer',
@@ -381,38 +475,57 @@ export const App: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            fontSize: '0.82rem'
+            fontSize: 'var(--font-size-label)'
           }}
         >
-          <LayoutGrid size={14} /> Interactive Plan
+          <LayoutGrid size={14} /> Plan
         </button>
       </div>
 
-      {/* Main Split-Screen Workspace (Desktop) */}
+      {/* Main Studio Workspace (Single surface divided by 1px hairline per Section 1 & 7) */}
       <main
         style={{
           flex: 1,
-          display: 'grid',
-          gridTemplateColumns: 'minmax(380px, 42%) minmax(450px, 58%)',
-          gap: '20px',
-          padding: '20px 24px',
-          overflow: 'hidden'
+          display: 'flex',
+          height: 'calc(100vh - 56px)',
+          width: '100%',
+          overflow: 'hidden',
+          backgroundColor: 'var(--color-bg-surface)'
         }}
       >
-        {/* Left Pane: Alexa+ Conversational Assistant */}
-        <section style={{ height: '100%', overflow: 'hidden' }}>
-          <ChatPanel
-            messages={chatMessages}
-            isLoading={isLoading}
-            onSendMessage={handleSendMessage}
-            onApplyAction={handleApplyAction}
-            suggestedPrompts={suggestedPrompts}
-            error={errorMessage}
-          />
+        {/* Left Pane: Conversational Assistant Studio (720px max column) */}
+        <section
+          style={{
+            flex: 1,
+            height: '100%',
+            overflow: 'hidden',
+            borderRight: '1px solid var(--color-border-default)',
+            display: 'flex',
+            justifyContent: 'center'
+          }}
+        >
+          <div style={{ width: '100%', maxWidth: '720px', height: '100%' }}>
+            <ChatPanel
+              messages={chatMessages}
+              isLoading={isLoading}
+              onSendMessage={handleSendMessage}
+              onApplyAction={handleApplyAction}
+              suggestedPrompts={suggestedPrompts}
+              error={errorMessage}
+            />
+          </div>
         </section>
 
-        {/* Right Pane: Live Interactive Plan Canvas */}
-        <section style={{ height: '100%', overflow: 'hidden' }}>
+        {/* Right Pane: Live Interactive Plan Document Studio */}
+        <section
+          style={{
+            width: '500px',
+            flexShrink: 0,
+            height: '100%',
+            overflow: 'hidden',
+            backgroundColor: 'var(--color-bg-surface)'
+          }}
+        >
           <PlanCanvas
             plan={activePlan}
             pendingAction={pendingAction}
@@ -423,6 +536,9 @@ export const App: React.FC = () => {
             onDeleteTask={handleDeleteTask}
             onApplyAction={handleApplyAction}
             onDismissAction={handleDismissAction}
+            onRebalanceSchedule={handleRebalanceSchedule}
+            onAddNewTask={handleAddNewTask}
+            onUpdatePlanTitle={handleUpdatePlanTitle}
           />
         </section>
       </main>
@@ -435,12 +551,6 @@ export const App: React.FC = () => {
         activePlanId={activePlan?.id}
         onSelectPlan={handleSelectPlan}
         onDeletePlan={handleDeletePlan}
-      />
-
-      {/* Design System & Pattern Guide Modal */}
-      <DesignSystemModal
-        isOpen={isDesignSystemOpen}
-        onClose={() => setIsDesignSystemOpen(false)}
       />
     </div>
   );

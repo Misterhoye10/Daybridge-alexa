@@ -1,10 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Plan, Task, AssistantAction } from '../../types/daybridge';
+import { Logo } from '../brand/Logo';
 import { TaskItem } from './TaskItem';
-import { ProgressBar } from './ProgressBar';
-import { GranularityControl } from './GranularityControl';
 import { ActionBadge } from '../common/ActionBadge';
-import { Bookmark, Check, CheckCircle2, Plus, Calendar, Layers } from 'lucide-react';
+import {
+  Calendar,
+  Check,
+  Plus,
+  Bookmark,
+  CheckCircle2,
+  Pencil
+} from 'lucide-react';
 
 interface PlanCanvasProps {
   plan: Plan | null;
@@ -17,6 +23,8 @@ interface PlanCanvasProps {
   onApplyAction?: (action: AssistantAction) => void;
   onDismissAction?: () => void;
   onAddNewTask?: () => void;
+  onRebalanceSchedule?: () => void;
+  onUpdatePlanTitle?: (newTitle: string) => void;
 }
 
 export const PlanCanvas: React.FC<PlanCanvasProps> = ({
@@ -29,8 +37,26 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
   onDeleteTask,
   onApplyAction,
   onDismissAction,
-  onAddNewTask
+  onAddNewTask,
+  onUpdatePlanTitle
 }) => {
+  const [selectedDay, setSelectedDay] = useState<string>('All');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(plan?.title || '');
+
+  const handleStartEditTitle = () => {
+    if (!plan) return;
+    setTitleDraft(plan.title);
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveTitle = () => {
+    if (titleDraft.trim() && onUpdatePlanTitle) {
+      onUpdatePlanTitle(titleDraft.trim());
+    }
+    setIsEditingTitle(false);
+  };
+
   if (!plan) {
     return (
       <div
@@ -40,46 +66,61 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '40px 24px',
+          padding: '40px 32px',
           textAlign: 'center',
-          backgroundColor: 'var(--bg-surface)',
-          borderRadius: 'var(--radius-xl)',
-          border: '1px dashed var(--border-medium)',
+          backgroundColor: 'var(--color-bg-surface)',
           minHeight: '480px'
         }}
       >
-        <div
+        <div style={{ marginBottom: '16px' }}>
+          <Logo size="lg" showWordmark={false} />
+        </div>
+        <h3
           style={{
-            width: '64px',
-            height: '64px',
-            borderRadius: 'var(--radius-lg)',
-            backgroundColor: 'var(--brand-gradient-subtle)',
-            border: '1px solid var(--border-brand)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: '18px',
-            boxShadow: 'var(--alexa-glow)'
+            fontFamily: 'var(--font-display)',
+            fontSize: 'var(--font-size-h1)',
+            fontWeight: 600,
+            marginBottom: '8px',
+            color: 'var(--color-text-primary)'
           }}
         >
-          <Layers size={28} color="var(--brand-cyan)" />
-        </div>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px', color: '#FFF' }}>
-          Interactive Plan Canvas
+          No saved plans yet.
         </h3>
-        <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', maxWidth: '360px', lineHeight: 1.5 }}>
-          Speak or type your goal to the Daybridge assistant on the left. Your dynamic, actionable plan will appear here.
+        <p
+          style={{
+            fontSize: 'var(--font-size-body)',
+            color: 'var(--color-text-secondary)',
+            maxWidth: '360px',
+            lineHeight: 'var(--line-height-body)'
+          }}
+        >
+          Ask for one, then save it here.
         </p>
       </div>
     );
   }
 
-  const completedCount = plan.tasks.filter((t) => t.isCompleted).length;
+  const completedCount = plan.tasks.filter((t) => t.done || t.isCompleted).length;
   const totalCount = plan.tasks.length;
+  const completionPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  // Group tasks by day if available, otherwise "General Tasks"
+  // Day list extraction
+  const dayNames = ['All', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const isAllDays = selectedDay === 'All';
+
+  const displayedTasks = plan.tasks.filter((task) => {
+    if (!isAllDays) {
+      const taskDay = task.day || '';
+      if (!taskDay.toLowerCase().includes(selectedDay.toLowerCase())) return false;
+    }
+    return true;
+  });
+
+  const totalMinutes = plan.tasks.reduce((acc, t) => acc + (t.minutes || t.estimatedMinutes || 0), 0);
+
+  // Group displayed tasks by day for structured timeline rendering
   const groupedTasks: { [key: string]: Task[] } = {};
-  plan.tasks.forEach((task) => {
+  displayedTasks.forEach((task) => {
     const key = task.day || 'General';
     if (!groupedTasks[key]) groupedTasks[key] = [];
     groupedTasks[key].push(task);
@@ -91,111 +132,296 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        backgroundColor: 'var(--bg-surface)',
-        borderRadius: 'var(--radius-xl)',
-        border: '1px solid var(--border-subtle)',
-        overflow: 'hidden',
-        boxShadow: 'var(--card-shadow)'
+        backgroundColor: 'var(--color-bg-surface)',
+        overflow: 'hidden'
       }}
     >
-      {/* Header Banner */}
+      {/* Calm, Precision Header */}
       <div
         style={{
-          padding: '24px 28px 18px',
-          borderBottom: '1px solid var(--border-subtle)',
-          backgroundColor: 'rgba(255, 255, 255, 0.015)'
+          padding: '20px 24px 16px',
+          borderBottom: '1px solid var(--color-border-default)',
+          backgroundColor: 'var(--color-bg-surface)'
         }}
       >
-        {/* Top actions & badge */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+        {/* Top bar: Status & Primary Action */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '10px'
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span
               style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.72rem',
-                color: 'var(--brand-teal)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                fontWeight: 600
+                fontSize: '11px',
+                fontWeight: 600,
+                color: isSaved ? 'var(--color-state-completed-text)' : 'var(--color-text-tertiary)',
+                backgroundColor: isSaved ? 'var(--color-state-completed-bg)' : 'var(--color-bg-sunken)',
+                border: `1px solid ${isSaved ? 'var(--color-state-completed-border)' : 'var(--color-border-default)'}`,
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-sm)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
               }}
             >
-              Active Plan
+              {isSaved ? <Check size={11} strokeWidth={2.5} /> : null}
+              {isSaved ? 'Saved plan' : 'Draft plan'}
             </span>
-            {isSaved && (
-              <span
+          </div>
+
+          <div>
+            {!isSaved ? (
+              <button
+                onClick={onSavePlan}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  fontSize: '0.72rem',
-                  color: 'var(--brand-teal)',
-                  backgroundColor: 'rgba(0, 212, 170, 0.1)',
-                  padding: '2px 8px',
-                  borderRadius: 'var(--radius-full)'
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-action-primary)',
+                  color: 'var(--color-action-on-primary)',
+                  border: 'none',
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  transition: 'background-color var(--duration-fast) var(--ease-standard)'
                 }}
               >
-                <Check size={11} /> Saved
+                <Bookmark size={13} />
+                Save plan
+              </button>
+            ) : (
+              <span
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--color-text-tertiary)',
+                  fontFamily: 'var(--font-mono)'
+                }}
+              >
+                Synchronized
               </span>
             )}
           </div>
+        </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              onClick={onSavePlan}
-              disabled={isSaved}
+        {/* Plan Title (Inline Editable) & Objective */}
+        {isEditingTitle ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <input
+              type="text"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveTitle();
+                if (e.key === 'Escape') {
+                  setTitleDraft(plan.title);
+                  setIsEditingTitle(false);
+                }
+              }}
+              autoFocus
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '7px 14px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: isSaved ? 'rgba(255, 255, 255, 0.05)' : 'var(--brand-gradient)',
-                color: isSaved ? 'var(--text-muted)' : '#0B0F1A',
-                border: 'none',
+                flex: 1,
+                fontSize: 'var(--font-size-h2)',
                 fontWeight: 600,
-                fontSize: '0.82rem',
-                cursor: isSaved ? 'default' : 'pointer',
-                transition: 'var(--transition-fast)'
+                color: 'var(--color-text-primary)',
+                backgroundColor: 'var(--color-bg-sunken)',
+                border: '1px solid var(--color-action-primary)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '4px 8px',
+                outline: 'none',
+                fontFamily: 'var(--font-ui)'
+              }}
+            />
+            <button
+              onClick={handleSaveTitle}
+              style={{
+                padding: '5px 12px',
+                backgroundColor: 'var(--color-action-primary)',
+                color: 'var(--color-action-on-primary)',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
               }}
             >
-              <Bookmark size={14} />
-              {isSaved ? 'Saved to Library' : 'Save Plan'}
+              Save
             </button>
+            <button
+              onClick={() => {
+                setTitleDraft(plan.title);
+                setIsEditingTitle(false);
+              }}
+              style={{
+                padding: '5px 8px',
+                backgroundColor: 'transparent',
+                color: 'var(--color-text-secondary)',
+                border: '1px solid var(--color-border-default)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              margin: '0 0 6px 0',
+              cursor: 'pointer'
+            }}
+            onClick={handleStartEditTitle}
+            title="Click to edit plan title"
+          >
+            <h2
+              style={{
+                fontFamily: 'var(--font-ui)',
+                fontSize: 'var(--font-size-h2)',
+                fontWeight: 600,
+                color: 'var(--color-text-primary)',
+                margin: 0,
+                letterSpacing: '-0.01em'
+              }}
+            >
+              {plan.title}
+            </h2>
+            <Pencil size={13} color="var(--color-text-tertiary)" style={{ opacity: 0.6 }} />
+          </div>
+        )}
+        <p
+          style={{
+            fontSize: 'var(--font-size-body)',
+            color: 'var(--color-text-secondary)',
+            lineHeight: 'var(--line-height-body)',
+            margin: '0 0 16px 0'
+          }}
+        >
+          {plan.objective || plan.summary}
+        </p>
+
+        {/* Minimal Progress Bar (Section 8) */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            paddingTop: '12px',
+            borderTop: '1px solid var(--color-border-default)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+              className="tabular-nums"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 'var(--font-size-data)',
+                fontWeight: 500,
+                color: 'var(--color-text-secondary)'
+              }}
+            >
+              {completedCount} of {totalCount} completed
+            </span>
+            <span style={{ color: 'var(--color-border-default)' }}>·</span>
+            <span
+              className="tabular-nums"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 'var(--font-size-data)',
+                color: 'var(--color-text-tertiary)'
+              }}
+            >
+              {totalMinutes} min total
+            </span>
+          </div>
+
+          <div
+            role="progressbar"
+            aria-valuenow={completionPercentage}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Plan completion progress"
+            style={{
+              width: '96px',
+              height: '6px',
+              backgroundColor: 'var(--color-bg-sunken)',
+              borderRadius: 'var(--radius-pill)',
+              overflow: 'hidden'
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${completionPercentage}%`,
+                backgroundColor:
+                  completionPercentage === 100
+                    ? 'var(--color-state-completed-text)'
+                    : 'var(--color-action-primary)',
+                borderRadius: 'var(--radius-pill)',
+                transition: 'width var(--duration-base) var(--ease-standard)'
+              }}
+            />
           </div>
         </div>
 
-        <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#FFFFFF', marginBottom: '8px', letterSpacing: '-0.02em' }}>
-          {plan.title}
-        </h2>
-        <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '16px' }}>
-          {plan.summary}
-        </p>
-
-        {/* Plan Granularity & Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px', marginBottom: '16px' }}>
-          <GranularityControl
-            value={plan.granularity || 2}
-            onChange={(_newLevel) => {
-              // Update plan granularity
-              onUpdateTask?.({
-                ...plan.tasks[0],
-                // dummy trigger or pass updatePlan
-              });
-            }}
-          />
+        {/* Quiet Day Selector Tabs */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '6px',
+            marginTop: '14px',
+            overflowX: 'auto'
+          }}
+        >
+          {dayNames.map((d) => {
+            const isActive = selectedDay === d;
+            return (
+              <button
+                key={d}
+                onClick={() => setSelectedDay(d)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: `1px solid ${isActive ? 'var(--color-border-strong)' : 'var(--color-border-default)'}`,
+                  backgroundColor: isActive ? 'var(--color-bg-sunken)' : 'transparent',
+                  color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                  fontSize: '12px',
+                  fontWeight: isActive ? 600 : 400,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all var(--duration-fast) var(--ease-standard)'
+                }}
+              >
+                {d}
+              </button>
+            );
+          })}
         </div>
-
-        {/* Progress Bar */}
-        <ProgressBar completed={completedCount} total={totalCount} />
       </div>
 
-      {/* Suggested Action Bar (PRD Requirement 5.4 & 5.5) */}
+      {/* Suggested Action Bar (PRD Section 4 & 8) */}
       {pendingAction && (
         <div
           style={{
-            padding: '12px 28px',
-            backgroundColor: 'rgba(253, 186, 116, 0.08)',
-            borderBottom: '1px solid rgba(253, 186, 116, 0.25)',
+            padding: '12px 24px',
+            backgroundColor:
+              pendingAction.state === 'awaiting_confirmation'
+                ? 'var(--color-state-awaiting-bg)'
+                : 'var(--color-state-suggested-bg)',
+            borderBottom: `1px solid ${
+              pendingAction.state === 'awaiting_confirmation'
+                ? 'var(--color-state-awaiting-border)'
+                : 'var(--color-state-suggested-border)'
+            }`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -205,7 +431,15 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <ActionBadge state={pendingAction.state} label={pendingAction.label} size="sm" />
-            <span style={{ fontSize: '0.82rem', color: '#FED7AA' }}>
+            <span
+              style={{
+                fontSize: 'var(--font-size-body)',
+                color:
+                  pendingAction.state === 'awaiting_confirmation'
+                    ? 'var(--color-state-awaiting-text)'
+                    : 'var(--color-state-suggested-text)'
+              }}
+            >
               {pendingAction.description}
             </span>
           </div>
@@ -219,16 +453,16 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
                   alignItems: 'center',
                   gap: '4px',
                   padding: '5px 12px',
-                  backgroundColor: '#FDBA74',
-                  color: '#1C1204',
+                  backgroundColor: 'var(--color-action-primary)',
+                  color: 'var(--color-action-on-primary)',
                   border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--font-size-label)',
+                  fontWeight: 600,
                   cursor: 'pointer'
                 }}
               >
-                <CheckCircle2 size={12} /> Apply Changes
+                <Check size={12} /> Confirm changes
               </button>
             )}
             {onDismissAction && (
@@ -237,10 +471,10 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
                 style={{
                   padding: '5px 10px',
                   backgroundColor: 'transparent',
-                  color: 'var(--text-muted)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.75rem',
+                  color: 'var(--color-text-secondary)',
+                  border: '1px solid var(--color-border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--font-size-label)',
                   cursor: 'pointer'
                 }}
               >
@@ -251,54 +485,96 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
         </div>
       )}
 
-      {/* Task List / Timeline Content */}
+      {/* Task List / Timeline Content - Clean, Document-Like */}
       <div
+        className="no-scrollbar"
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '24px 28px'
+          padding: '20px 24px'
         }}
       >
-        {Object.entries(groupedTasks).map(([groupName, tasks]) => (
-          <div key={groupName} style={{ marginBottom: '24px' }}>
-            {groupName !== 'General' && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '12px'
-                }}
-              >
-                <Calendar size={14} color="var(--brand-teal)" />
-                <h4
+        {Object.entries(groupedTasks).length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-tertiary)' }}>
+            <p style={{ fontSize: 'var(--font-size-body)' }}>No items match the selected filter.</p>
+          </div>
+        ) : (
+          Object.entries(groupedTasks).map(([groupName, tasks]) => {
+            const groupMinutes = tasks
+              .filter((t) => (t.kind || 'task') !== 'marker')
+              .reduce((acc, t) => acc + (t.minutes || t.estimatedMinutes || 0), 0);
+            const isGroupCompleted = tasks.every((t) => t.done || t.isCompleted);
+
+            return (
+              <div key={groupName} style={{ marginBottom: '24px' }}>
+                <div
                   style={{
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    color: 'var(--brand-teal)',
-                    fontFamily: 'var(--font-mono)'
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '10px',
+                    paddingBottom: '6px',
+                    borderBottom: '1px solid var(--color-border-default)'
                   }}
                 >
-                  {groupName}
-                </h4>
-                <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-subtle)' }} />
-              </div>
-            )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Calendar size={13} color="var(--color-text-secondary)" />
+                    <h4
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: 'var(--color-text-primary)',
+                        margin: 0
+                      }}
+                    >
+                      {groupName}
+                    </h4>
+                    {groupMinutes > 0 && (
+                      <span
+                        className="tabular-nums"
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--color-text-tertiary)',
+                          fontFamily: 'var(--font-mono)'
+                        }}
+                      >
+                        · {groupMinutes}m
+                      </span>
+                    )}
+                  </div>
 
-            {tasks.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                onToggleComplete={onToggleTask}
-                onUpdateTask={onUpdateTask}
-                onDeleteTask={onDeleteTask}
-                isSuggested={pendingAction?.payload?.taskId === task.id}
-              />
-            ))}
-          </div>
-        ))}
+                  {isGroupCompleted && (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '11px',
+                        color: 'var(--color-state-completed-text)',
+                        fontWeight: 500
+                      }}
+                    >
+                      <CheckCircle2 size={12} /> Done
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {tasks.map((task) => (
+                    <TaskItem
+                      key={task.id}
+                      task={task}
+                      onToggleComplete={onToggleTask}
+                      onUpdateTask={onUpdateTask}
+                      onDeleteTask={onDeleteTask}
+                      isSuggested={pendingAction?.payload?.taskId === task.id}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        )}
 
         {onAddNewTask && (
           <button
@@ -307,20 +583,20 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
               width: '100%',
               padding: '10px',
               borderRadius: 'var(--radius-md)',
-              border: '1px dashed var(--border-medium)',
+              border: '1px dashed var(--color-border-default)',
               backgroundColor: 'transparent',
-              color: 'var(--text-secondary)',
-              fontSize: '0.82rem',
+              color: 'var(--color-text-secondary)',
+              fontSize: 'var(--font-size-label)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '6px',
               cursor: 'pointer',
-              transition: 'var(--transition-fast)',
+              transition: 'all var(--duration-fast) var(--ease-standard)',
               marginTop: '8px'
             }}
           >
-            <Plus size={14} /> Add new task
+            <Plus size={14} /> Add item
           </button>
         )}
       </div>
