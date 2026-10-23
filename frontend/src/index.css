@@ -152,17 +152,20 @@
   min-width: 0;
 }
 
+/* Header controls — compact on desktop; 44px touch only under lg (#7, #4) */
 .app-header-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: var(--target-touch);
-  min-width: var(--target-touch);
-  padding: 6px 10px;
+  height: 32px;
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0 12px;
   border-radius: var(--radius-md);
-  font-size: var(--font-size-label);
+  font-size: 12px;
   font-weight: 500;
+  line-height: 1;
   cursor: pointer;
   border: 1px solid var(--color-border-default);
   background-color: var(--color-bg-surface);
@@ -173,9 +176,19 @@
   white-space: nowrap;
 }
 
+.app-header-btn:hover:not(:disabled) {
+  background-color: var(--color-bg-raised);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
 .app-header-btn:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
+}
+
+.app-header-btn:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .app-header-btn--primary {
@@ -183,23 +196,274 @@
   color: var(--color-action-on-primary);
   border-color: transparent;
   font-weight: 600;
+  padding: 0 14px;
 }
 
-.app-header-btn--primary:hover {
+.app-header-btn--primary:hover:not(:disabled) {
   background-color: var(--color-action-primary-hover);
+  border-color: transparent;
+  color: var(--color-action-on-primary);
 }
 
 .app-header-btn--ghost {
   background-color: transparent;
   color: var(--color-text-tertiary);
+  border-color: transparent;
+}
+
+.app-header-btn--ghost:hover:not(:disabled) {
+  background-color: var(--color-bg-sunken);
+  border-color: transparent;
+  color: var(--color-text-primary);
 }
 
 .app-header-btn--sunken {
   background-color: var(--color-bg-sunken);
 }
 
+.app-header-btn--sunken:hover:not(:disabled) {
+  background-color: var(--color-bg-raised);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
 .app-header-btn .btn-label {
   display: none;
+}
+
+/* Plan toolbar — same compact primary as header */
+.plan-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.plan-toolbar-btn--primary {
+  background-color: var(--color-action-primary);
+  color: var(--color-action-on-primary);
+}
+
+.plan-toolbar-btn--primary:hover:not(:disabled) {
+  background-color: var(--color-action-primary-hover);
+}
+
+.plan-toolbar-btn--primary:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.plan-toolbar-btn:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.plan-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.plan-seg-btn:hover:not(.is-active) {
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-surface);
+  opacity: 0.85;
+}
+
+.plan-seg-btn.is-active:hover {
+  opacity: 1;
+}
+
+.plan-seg-btn.is-active {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.plan-day-chip {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.plan-day-chip:hover:not(.is-active) {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-sunken);
+}
+
+.plan-day-chip.is-active {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-bg-sunken);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.plan-day-chip:focus-visible,
+.plan-seg-btn:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Shared button primitive hovers (inline variants set defaults) */
+.daybridge-button[data-variant='primary']:hover:not(:disabled) {
+  background-color: var(--color-action-primary-hover) !important;
+  border-color: var(--color-action-primary-hover) !important;
+}
+
+.daybridge-button[data-variant='secondary']:hover:not(:disabled) {
+  background-color: var(--color-bg-raised) !important;
+  border-color: var(--color-border-strong) !important;
+}
+
+.daybridge-button[data-variant='ghost']:hover:not(:disabled) {
+  background-color: var(--color-bg-sunken) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.daybridge-button[data-variant='destructive']:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.daybridge-prompt-chip:hover:not(:disabled) {
+  border-color: var(--color-action-primary);
+  color: var(--color-text-primary);
+}
+
+.chat-prompt-row:hover:not(:disabled) {
+  border-color: var(--color-action-primary);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-surface);
+}
+
+.plan-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.plan-action-btn--primary {
+  background-color: var(--color-action-primary);
+  color: var(--color-action-on-primary);
+  border: none;
+}
+
+.plan-action-btn--primary:hover:not(:disabled) {
+  background-color: var(--color-action-primary-hover);
+}
+
+.plan-action-btn--secondary {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-default);
+}
+
+.plan-action-btn--secondary:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-bg-raised);
+}
+
+.plan-action-btn--ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-default);
+}
+
+.plan-action-btn--ghost:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+  background-color: var(--color-bg-sunken);
+}
+
+/* Add item — dashed create affordance (#11, #18) */
+.plan-add-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border-default);
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.plan-add-item:hover:not(:disabled) {
+  border-color: var(--color-action-primary);
+  border-style: dashed;
+  background-color: var(--color-bg-sunken);
+  color: var(--color-text-primary);
+}
+
+.plan-add-item:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.plan-add-item:active:not(:disabled) {
+  transform: scale(0.99);
+  background-color: var(--color-bg-raised);
+}
+
+.plan-add-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .studio {
@@ -539,14 +803,24 @@
 }
 
 /* Mobile type scale nudge for welcome */
+@media (max-width: 1023px) {
+  .app-header-btn {
+    height: var(--target-touch);
+    min-height: var(--target-touch);
+    min-width: var(--target-touch);
+  }
+}
+
 @media (max-width: 639px) {
   .chat-welcome-title {
     font-size: 22px !important;
     line-height: 28px !important;
   }
 
+  /* Keep wordmark on mobile — brand must read without guessing the mark */
   .app-header .daybridge-logo-lockup span {
-    display: none;
+    display: inline;
+    font-size: 16px;
   }
 
   /* New plan already clears — hide duplicate reset on phone */

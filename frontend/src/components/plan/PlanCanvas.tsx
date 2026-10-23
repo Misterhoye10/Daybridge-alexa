@@ -273,43 +273,17 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
               }}
             >
               <button
+                type="button"
+                className={`plan-seg-btn${viewMode === 'timeline' ? ' is-active' : ''}`}
                 onClick={() => setViewMode('timeline')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '3px 8px',
-                  borderRadius: 'var(--radius-pill)',
-                  border: 'none',
-                  backgroundColor: viewMode === 'timeline' ? 'var(--color-bg-surface)' : 'transparent',
-                  color: viewMode === 'timeline' ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-                  fontWeight: viewMode === 'timeline' ? 600 : 400,
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  boxShadow: viewMode === 'timeline' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                  transition: 'all var(--duration-fast) var(--ease-standard)'
-                }}
               >
                 <List size={11} />
                 Timeline
               </button>
               <button
+                type="button"
+                className={`plan-seg-btn${viewMode === 'board' ? ' is-active' : ''}`}
                 onClick={() => setViewMode('board')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '3px 8px',
-                  borderRadius: 'var(--radius-pill)',
-                  border: 'none',
-                  backgroundColor: viewMode === 'board' ? 'var(--color-bg-surface)' : 'transparent',
-                  color: viewMode === 'board' ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-                  fontWeight: viewMode === 'board' ? 600 : 400,
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  boxShadow: viewMode === 'board' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                  transition: 'all var(--duration-fast) var(--ease-standard)'
-                }}
               >
                 <LayoutGrid size={11} />
                 Board
@@ -318,25 +292,12 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
 
             {!isSaved ? (
               <button
+                type="button"
+                className="plan-toolbar-btn plan-toolbar-btn--primary"
                 onClick={onSavePlan}
                 disabled={isSaving}
                 aria-busy={isSaving}
                 title={isSaving ? 'Saving…' : 'Save plan to library'}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '5px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'var(--color-action-primary)',
-                  color: 'var(--color-action-on-primary)',
-                  border: 'none',
-                  fontWeight: 600,
-                  fontSize: '11px',
-                  cursor: isSaving ? 'wait' : 'pointer',
-                  opacity: isSaving ? 0.7 : 1,
-                  transition: 'background-color var(--duration-fast) var(--ease-standard)'
-                }}
               >
                 <Bookmark size={12} />
                 {isSaving ? 'Saving…' : 'Save plan'}
@@ -532,20 +493,10 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
             const isActive = selectedDay === d;
             return (
               <button
+                type="button"
                 key={d}
+                className={`plan-day-chip${isActive ? ' is-active' : ''}`}
                 onClick={() => setSelectedDay(d)}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: `1px solid ${isActive ? 'var(--color-border-strong)' : 'var(--color-border-default)'}`,
-                  backgroundColor: isActive ? 'var(--color-bg-sunken)' : 'transparent',
-                  color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-                  fontSize: '12px',
-                  fontWeight: isActive ? 600 : 400,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  transition: 'all var(--duration-fast) var(--ease-standard)'
-                }}
               >
                 {d}
               </button>
@@ -602,21 +553,8 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
                 pendingAction.state === 'suggested') && (
                 <button
                   type="button"
+                  className="plan-action-btn plan-action-btn--primary"
                   onClick={() => onApplyAction(pendingAction)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '5px 12px',
-                    backgroundColor: 'var(--color-action-primary)',
-                    color: 'var(--color-action-on-primary)',
-                    border: 'none',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 'var(--font-size-label)',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    minHeight: '36px'
-                  }}
                 >
                   <Check size={12} /> Confirm changes
                 </button>
@@ -624,21 +562,8 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
             {onApplyAction && pendingAction.state === 'failed' && (
               <button
                 type="button"
+                className="plan-action-btn plan-action-btn--secondary"
                 onClick={() => onApplyAction(pendingAction)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '5px 12px',
-                  backgroundColor: 'var(--color-bg-surface)',
-                  color: 'var(--color-text-primary)',
-                  border: '1px solid var(--color-border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 'var(--font-size-label)',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  minHeight: '36px'
-                }}
               >
                 <RotateCcw size={12} /> Retry
               </button>
@@ -657,17 +582,8 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
             {onDismissAction && pendingAction.state !== 'running' && (
               <button
                 type="button"
+                className="plan-action-btn plan-action-btn--ghost"
                 onClick={onDismissAction}
-                style={{
-                  padding: '5px 10px',
-                  backgroundColor: 'transparent',
-                  color: 'var(--color-text-secondary)',
-                  border: '1px solid var(--color-border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 'var(--font-size-label)',
-                  cursor: 'pointer',
-                  minHeight: '36px'
-                }}
               >
                 Dismiss
               </button>
@@ -1021,25 +937,13 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
 
         {onAddNewTask && (
           <button
+            type="button"
+            className="plan-add-item"
             onClick={onAddNewTask}
-            style={{
-              width: '100%',
-              padding: '10px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px dashed var(--color-border-default)',
-              backgroundColor: 'transparent',
-              color: 'var(--color-text-secondary)',
-              fontSize: 'var(--font-size-label)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              cursor: 'pointer',
-              transition: 'all var(--duration-fast) var(--ease-standard)',
-              marginTop: '8px'
-            }}
+            aria-label="Add item to plan"
           >
-            <Plus size={14} /> Add item
+            <Plus size={14} strokeWidth={2} aria-hidden="true" />
+            Add item
           </button>
         )}
       </div>

@@ -410,9 +410,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {suggestedPrompts.slice(0, 3).map((prompt, idx) => (
                 <button
+                  type="button"
                   key={idx}
                   onClick={() => handlePromptClick(prompt)}
-                  className="prompt-chip"
+                  className="prompt-chip chat-prompt-row"
                   style={{
                     minHeight: '44px',
                     padding: '12px 14px',
@@ -429,14 +430,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     justifyContent: 'space-between',
                     gap: '12px',
                     transition: 'all var(--duration-fast) var(--ease-standard)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-action-primary)';
-                    e.currentTarget.style.backgroundColor = 'var(--color-bg-surface)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-border-default)';
-                    e.currentTarget.style.backgroundColor = 'var(--color-bg-sunken)';
                   }}
                 >
                   <span style={{ fontWeight: 500, flex: 1 }}>{prompt}</span>

@@ -43,3 +43,13 @@
 | Default | primary / secondary | Save | |
 | Loading | button loading | Saving… | |
 | Disabled | muted | Saved plan | Already in library — reason inline |
+
+## Interactive: Add item
+
+| State | Visual | Copy / a11y | Notes |
+|---|---|---|---|
+| Default | Dashed border, secondary text, + | “Add item” | Full-width under task list |
+| Hover | Harbor dashed border, sunken fill | | Affordance (#11) |
+| Focus | Focus ring | aria-label Add item to plan | |
+| Active | Slight scale + raised fill | | Confirms press (#18) |
+| Disabled | 45% opacity | — | When create blocked (future) |

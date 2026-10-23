@@ -52,6 +52,7 @@ export const Button: React.FC<ButtonProps> = ({
   return (
     <button
       disabled={disabled || isLoading}
+      data-variant={variant}
       className={`daybridge-button ${className}`}
       style={{
         display: 'inline-flex',
@@ -62,7 +63,8 @@ export const Button: React.FC<ButtonProps> = ({
         fontFamily: 'var(--font-ui)',
         cursor: disabled || isLoading ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.45 : 1,
-        transition: 'transform var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard)',
+        transition:
+          'transform var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), filter var(--duration-fast) var(--ease-standard)',
         outline: 'none',
         userSelect: 'none',
         whiteSpace: 'nowrap',
