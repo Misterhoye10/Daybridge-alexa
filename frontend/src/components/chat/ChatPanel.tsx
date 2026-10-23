@@ -27,6 +27,7 @@ import {
 } from '../../voice/tts';
 import { startSpeechRecognition, stopSpeechRecognition } from '../../voice/stt';
 import { usePipelinePlayback } from '../../hooks/usePipelinePlayback';
+import type { JudgeScenario } from '../../data/judgeScenarios';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -38,6 +39,8 @@ interface ChatPanelProps {
   suggestedPrompts?: string[];
   error?: string | null;
   errorRetryable?: boolean;
+  judgeScenarios?: JudgeScenario[];
+  onJudgeScenario?: (scenario: JudgeScenario) => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -49,7 +52,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onRetryError,
   suggestedPrompts = [],
   error,
-  errorRetryable = true
+  errorRetryable = true,
+  judgeScenarios = [],
+  onJudgeScenario
 }) => {
   const [inputText, setInputText] = useState('');
   const [isVoiceListening, setIsVoiceListening] = useState(false);
@@ -354,6 +359,25 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
+      {judgeScenarios.length > 0 && onJudgeScenario && !isInitialState && (
+        <div className="judge-scenarios judge-scenarios--compact panel-pad" aria-label="Judge demo scenarios">
+          <div className="judge-scenarios__row">
+            {judgeScenarios.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="judge-scenario-pill"
+                disabled={isLoading}
+                title={s.hint}
+                onClick={() => onJudgeScenario(s)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Messages Feed */}
       <div
         role="log"
@@ -405,6 +429,26 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             >
               Tell me the goal and how much time you have. I&apos;ll build the plan.
             </p>
+
+            {judgeScenarios.length > 0 && onJudgeScenario && (
+              <div className="judge-scenarios" aria-label="Judge demo scenarios">
+                <span className="judge-scenarios__label">60s demo</span>
+                <div className="judge-scenarios__row">
+                  {judgeScenarios.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className="judge-scenario-pill"
+                      disabled={isLoading}
+                      title={s.hint}
+                      onClick={() => onJudgeScenario(s)}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Prominent Stacked PromptChips (44px high each, full-width) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

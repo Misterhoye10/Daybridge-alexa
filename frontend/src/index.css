@@ -261,6 +261,91 @@
   background-color: var(--color-action-primary-hover);
 }
 
+.plan-toolbar-btn--ghost {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-default);
+  font-weight: 500;
+}
+
+.plan-toolbar-btn--ghost:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-raised);
+}
+
+.app-header-btn--danger {
+  background-color: var(--color-state-failed-bg, #fde8e8);
+  color: var(--color-state-failed-text, #b42318);
+  border-color: transparent;
+}
+
+.app-header-btn--danger:hover:not(:disabled) {
+  filter: brightness(0.97);
+  border-color: transparent;
+  color: var(--color-state-failed-text, #b42318);
+}
+
+.judge-scenarios {
+  margin-bottom: 14px;
+}
+
+.judge-scenarios__label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin-bottom: 8px;
+}
+
+.judge-scenarios--compact {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border-default);
+  margin: 0;
+}
+
+.judge-scenarios__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.judge-scenario-pill {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-sunken);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.judge-scenario-pill:hover:not(:disabled) {
+  border-color: var(--color-action-primary);
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+}
+
+.judge-scenario-pill:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.judge-scenario-pill:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .plan-toolbar-btn--primary:disabled {
   opacity: 0.7;
   cursor: wait;

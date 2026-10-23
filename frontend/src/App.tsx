@@ -5,14 +5,16 @@ import { ChatPanel } from './components/chat/ChatPanel';
 import { PlanCanvas } from './components/plan/PlanCanvas';
 import { SavedPlansDrawer } from './components/saved/SavedPlansDrawer';
 import { TokenSwatchPage } from './components/design-system/TokenSwatchPage';
-import { apiService, INITIAL_INTERVIEW_PREP_PLAN } from './services/api';
+import { apiService, INITIAL_INTERVIEW_PREP_PLAN, setDemoFailNext } from './services/api';
 import { useTheme } from './context/ThemeContext';
-import { Bookmark, RotateCcw, LayoutList, Sun, Moon, Plus, X } from 'lucide-react';
+import { Bookmark, RotateCcw, LayoutList, Sun, Moon, Plus, X, Zap } from 'lucide-react';
 import { gsap, useGSAP } from './motion/setup';
 import { motion } from './motion/tokens';
 import { OfflineBanner } from './components/common/OfflineBanner';
 import { Toast } from './components/common/Toast';
 import { DaybridgeApiError } from './services/api';
+import { JUDGE_SCENARIOS, type JudgeScenario } from './data/judgeScenarios';
+import { downloadPlanIcs, copyPlanMarkdown } from './utils/planExport';
 
 export const App: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -41,6 +43,7 @@ export const App: React.FC = () => {
     () => (typeof navigator !== 'undefined' ? !navigator.onLine : false)
   );
   const [pendingAction, setPendingAction] = useState<AssistantAction | undefined>(undefined);
+  const [failDrillArmed, setFailDrillArmed] = useState(false);
   /** Mobile only: plan as full-height sheet. Desktop keeps pinned pane. */
   const [isPlanSheetOpen, setIsPlanSheetOpen] = useState(false);
   const [isNarrowViewport, setIsNarrowViewport] = useState(() =>
@@ -205,6 +208,7 @@ export const App: React.FC = () => {
       }
     } catch (err: unknown) {
       const apiErr = err instanceof DaybridgeApiError ? err : null;
+      if (apiErr?.code === 'demo_forced_failure') setFailDrillArmed(false);
       setErrorMessage(
         apiErr?.message ||
           (err as Error)?.message ||
@@ -232,40 +236,96 @@ export const App: React.FC = () => {
     void handleSendMessage(text);
   };
 
-  // Toggle task completion
-  const handleToggleTask = (taskId: string) => {
+  const canPersistTasks = (plan: Plan) =>
+    plan.status === 'saved' && !String(plan.id).startsWith('draft_');
+
+  // Toggle task — optimistic + persist with rollback (#18 truthful)
+  const handleToggleTask = async (taskId: string) => {
     if (!activePlan) return;
-    const updatedTasks = activePlan.tasks.map((task) =>
-      task.id === taskId ? { ...task, isCompleted: !task.isCompleted } : task
+    const prev = activePlan;
+    const target = prev.tasks.find((t) => t.id === taskId);
+    if (!target) return;
+    const nextDone = !(target.isCompleted || target.done);
+    const updatedTasks = prev.tasks.map((task) =>
+      task.id === taskId
+        ? {
+            ...task,
+            isCompleted: nextDone,
+            done: nextDone,
+            scheduleStatus: (nextDone ? 'completed' : 'scheduled') as Task['scheduleStatus']
+          }
+        : task
     );
+    const doneCount = updatedTasks.filter((t) => t.isCompleted || t.done).length;
     const updatedPlan: Plan = {
-      ...activePlan,
+      ...prev,
       tasks: updatedTasks,
-      updatedAt: new Date().toISOString()
+      completionPercentage: Math.round((doneCount / Math.max(updatedTasks.length, 1)) * 100),
+      updatedAt: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
     setActivePlan(updatedPlan);
+
+    if (!canPersistTasks(prev) || isOffline) return;
+    try {
+      await apiService.updateTask(taskId, { done: nextDone, isCompleted: nextDone });
+    } catch (err: unknown) {
+      setActivePlan(prev);
+      const message =
+        err instanceof DaybridgeApiError
+          ? err.message
+          : "Couldn't update task. Restored previous state.";
+      setErrorMessage(message);
+      setErrorRetryable(true);
+      setToastMessage('Task update rolled back.');
+    }
   };
 
   // Update task details
-  const handleUpdateTask = (updatedTask: Task) => {
+  const handleUpdateTask = async (updatedTask: Task) => {
     if (!activePlan) return;
-    const updatedTasks = activePlan.tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t));
+    const prev = activePlan;
+    const updatedTasks = prev.tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t));
     setActivePlan({
-      ...activePlan,
+      ...prev,
       tasks: updatedTasks,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     });
+    if (!canPersistTasks(prev) || isOffline) return;
+    try {
+      await apiService.updateTask(updatedTask.id, {
+        title: updatedTask.title,
+        description: updatedTask.description,
+        day: updatedTask.day,
+        minutes: updatedTask.minutes ?? updatedTask.estimatedMinutes,
+        priority: updatedTask.priority,
+        done: updatedTask.done ?? updatedTask.isCompleted
+      });
+    } catch {
+      setActivePlan(prev);
+      setToastMessage('Edit rolled back — could not save.');
+    }
   };
 
   // Delete a task
-  const handleDeleteTask = (taskId: string) => {
+  const handleDeleteTask = async (taskId: string) => {
     if (!activePlan) return;
-    const updatedTasks = activePlan.tasks.filter((t) => t.id !== taskId);
+    const prev = activePlan;
+    const updatedTasks = prev.tasks.filter((t) => t.id !== taskId);
     setActivePlan({
-      ...activePlan,
+      ...prev,
       tasks: updatedTasks,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     });
+    if (!canPersistTasks(prev) || isOffline) return;
+    try {
+      await apiService.deleteTask(taskId, prev.id);
+    } catch {
+      setActivePlan(prev);
+      setToastMessage('Delete rolled back — could not save.');
+    }
   };
 
   // Update plan title inline
@@ -362,6 +422,9 @@ export const App: React.FC = () => {
       };
       setChatMessages((prev) => [...prev, confirmMsg]);
     } catch (err: unknown) {
+      if (err instanceof DaybridgeApiError && err.code === 'demo_forced_failure') {
+        setFailDrillArmed(false);
+      }
       const message =
         err instanceof Error ? err.message : "Couldn't apply changes. Nothing was changed.";
       setErrorMessage(message);
@@ -407,7 +470,10 @@ export const App: React.FC = () => {
 
   // Propose rebalance — never mark completed until Confirm
   const handleRebalanceSchedule = () => {
-    if (!activePlan) return;
+    if (!activePlan) {
+      setToastMessage('Create or open a plan first, then rebalance.');
+      return;
+    }
     const isAlreadyChunked = activePlan.tasks.some((t) => t.chunkPart);
     if (isAlreadyChunked) {
       setPendingAction({
@@ -428,6 +494,49 @@ export const App: React.FC = () => {
         state: 'awaiting_confirmation',
         payload: { plan: rebalanced }
       });
+    }
+    openPlanSheet();
+  };
+
+  const handleExportIcs = () => {
+    if (!activePlan) return;
+    downloadPlanIcs(activePlan);
+    setToastMessage('Calendar file downloaded.');
+  };
+
+  const handleCopyMarkdown = async () => {
+    if (!activePlan) return;
+    try {
+      await copyPlanMarkdown(activePlan);
+      setToastMessage('Markdown copied.');
+    } catch {
+      setToastMessage("Couldn't copy — try again.");
+    }
+  };
+
+  const handleArmFailDrill = () => {
+    const next = !failDrillArmed;
+    setFailDrillArmed(next);
+    setDemoFailNext(next);
+    setToastMessage(
+      next
+        ? 'Failure drill armed — next chat or Confirm will fail honestly.'
+        : 'Failure drill off.'
+    );
+  };
+
+  const handleJudgeScenario = (scenario: JudgeScenario) => {
+    if (scenario.rebalance) {
+      handleRebalanceSchedule();
+      return;
+    }
+    if (scenario.forceFail) {
+      setFailDrillArmed(true);
+      setDemoFailNext(true);
+      setToastMessage('Failure drill armed for this send.');
+    }
+    if (scenario.message) {
+      void handleSendMessage(scenario.message);
     }
   };
 
@@ -609,6 +718,26 @@ export const App: React.FC = () => {
 
           <button
             type="button"
+            className={`app-header-btn${failDrillArmed ? ' app-header-btn--danger' : ''}`}
+            onClick={handleArmFailDrill}
+            aria-pressed={failDrillArmed}
+            aria-label={
+              failDrillArmed
+                ? 'Failure drill on — next action will fail'
+                : 'Arm failure drill'
+            }
+            title={
+              failDrillArmed
+                ? 'Failure drill ON — next chat/Confirm fails (no false success)'
+                : 'Arm failure drill (proves truthful state)'
+            }
+          >
+            <Zap size={14} strokeWidth={2} />
+            <span className="btn-label">{failDrillArmed ? 'Fail on' : 'Fail drill'}</span>
+          </button>
+
+          <button
+            type="button"
             className="app-header-btn"
             onClick={toggleTheme}
             aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
@@ -647,6 +776,8 @@ export const App: React.FC = () => {
               suggestedPrompts={suggestedPrompts}
               error={errorMessage}
               errorRetryable={errorRetryable && Boolean(lastFailedSend)}
+              judgeScenarios={JUDGE_SCENARIOS}
+              onJudgeScenario={handleJudgeScenario}
             />
           </div>
         </section>
@@ -701,6 +832,8 @@ export const App: React.FC = () => {
               onAddNewTask={handleAddNewTask}
               onUpdatePlanTitle={handleUpdatePlanTitle}
               onAskForPlan={focusComposer}
+              onExportIcs={handleExportIcs}
+              onCopyMarkdown={handleCopyMarkdown}
             />
           </div>
         </section>

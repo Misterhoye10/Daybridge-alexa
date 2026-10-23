@@ -14,7 +14,7 @@ npm run dev
 
 ## Judges
 
-See **[JUDGE.md](./JUDGE.md)** — 60s script, browser notes (Safari typed path vs Chrome voice), truthful-state rules.
+See **[JUDGE.md](./JUDGE.md)** — zero-typing **60s demo** pills, failure drill, .ics export, browser notes, truthful-state rules.
 
 | Browser | Typed hero | Mic | TTS |
 |---|---|---|---|

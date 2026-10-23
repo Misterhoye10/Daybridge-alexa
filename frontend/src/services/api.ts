@@ -185,10 +185,23 @@ export const INITIAL_INTERVIEW_PREP_PLAN: Plan = {
   ]
 };
 
-// Check if backend is available and inject session headers
+/** Judge failure drill — next chat/confirm throws; never claims success. */
 let demoFailNext = false;
 export function setDemoFailNext(val: boolean) {
   demoFailNext = val;
+}
+export function isDemoFailArmed(): boolean {
+  return demoFailNext;
+}
+
+function consumeDemoFailOrThrow(): void {
+  if (!demoFailNext) return;
+  demoFailNext = false;
+  throw new DaybridgeApiError(
+    'demo_forced_failure',
+    'Forced failure drill — nothing was changed. Retry when ready.',
+    true
+  );
 }
 
 /** Real network call. Throws DaybridgeApiError — never silently succeeds. */
@@ -250,27 +263,25 @@ export const apiService = {
 
   // POST /api/chat
   async sendChat(payload: ApiChatRequest): Promise<ApiChatResponse> {
+    // Client-side drill always works (mock + live). Backend X-Demo-Fail is optional extra.
+    consumeDemoFailOrThrow();
+
     if (USE_MOCK) {
       return this.mockChat(payload);
     }
 
-    try {
-      return await apiFetch<ApiChatResponse>('/api/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          message: payload.message,
-          conversation_id: payload.conversation_id,
-          context: { plan: payload.context?.plan || payload.currentPlanState || null },
-          client: {
-            now: new Date().toISOString(),
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-          }
-        })
-      });
-    } catch (err) {
-      console.warn('Live API call encountered an issue, using responsive simulation:', err);
-      return this.mockChat(payload);
-    }
+    return apiFetch<ApiChatResponse>('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        message: payload.message,
+        conversation_id: payload.conversation_id,
+        context: { plan: payload.context?.plan || payload.currentPlanState || null },
+        client: {
+          now: new Date().toISOString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        }
+      })
+    });
   },
 
   /** Local simulation — only when VITE_USE_MOCK=1 */
@@ -679,6 +690,8 @@ export const apiService = {
 
   // POST /api/actions/:id/confirm
   async confirmAction(actionId: string, payload?: any): Promise<{ ok: boolean; action_id: string; status: string; plan?: Plan; summary?: string }> {
+    consumeDemoFailOrThrow();
+
     if (USE_MOCK) {
       const targetPlan = payload?.plan || INITIAL_INTERVIEW_PREP_PLAN;
       await this.savePlan(targetPlan);
@@ -691,22 +704,10 @@ export const apiService = {
       };
     }
 
-    try {
-      return await apiFetch<{ ok: boolean; action_id: string; status: string; plan: Plan; summary: string }>(
-        `/api/actions/${actionId}/confirm`,
-        { method: 'POST', body: JSON.stringify(payload || {}) }
-      );
-    } catch (err) {
-      console.warn('Remote confirmAction failed, completing state mutation locally:', err);
-      const targetPlan = payload?.plan || INITIAL_INTERVIEW_PREP_PLAN;
-      return {
-        ok: true,
-        action_id: actionId,
-        status: 'completed',
-        plan: targetPlan,
-        summary: payload?.summary || 'Monday is now 30 minutes. Added Peer Mock Coding Interview on Thursday.'
-      };
-    }
+    return apiFetch<{ ok: boolean; action_id: string; status: string; plan: Plan; summary: string }>(
+      `/api/actions/${actionId}/confirm`,
+      { method: 'POST', body: JSON.stringify(payload || {}) }
+    );
   },
 
   // POST /api/actions/:id/cancel

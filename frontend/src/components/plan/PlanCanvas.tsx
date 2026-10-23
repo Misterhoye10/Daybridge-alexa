@@ -13,7 +13,10 @@ import {
   Pencil,
   LayoutGrid,
   List,
-  RotateCcw
+  RotateCcw,
+  Download,
+  Copy,
+  Timer
 } from 'lucide-react';
 import { gsap, useGSAP } from '../../motion/setup';
 import { motion, RISE_Y } from '../../motion/tokens';
@@ -34,6 +37,8 @@ interface PlanCanvasProps {
   onRebalanceSchedule?: () => void;
   onUpdatePlanTitle?: (newTitle: string) => void;
   onAskForPlan?: () => void;
+  onExportIcs?: () => void;
+  onCopyMarkdown?: () => void;
 }
 
 export const PlanCanvas: React.FC<PlanCanvasProps> = ({
@@ -49,8 +54,11 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
   onApplyAction,
   onDismissAction,
   onAddNewTask,
+  onRebalanceSchedule,
   onUpdatePlanTitle,
-  onAskForPlan
+  onAskForPlan,
+  onExportIcs,
+  onCopyMarkdown
 }) => {
   const [selectedDay, setSelectedDay] = useState<string>('All');
   const [viewMode, setViewMode] = useState<'timeline' | 'board'>('timeline');
@@ -290,6 +298,41 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
               </button>
             </div>
 
+            {onRebalanceSchedule && (
+              <button
+                type="button"
+                className="plan-toolbar-btn plan-toolbar-btn--ghost"
+                onClick={onRebalanceSchedule}
+                title="Propose a 30-minute rebalance"
+                aria-label="Rebalance to 30 minutes"
+              >
+                <Timer size={12} />
+                30m
+              </button>
+            )}
+            {onExportIcs && (
+              <button
+                type="button"
+                className="plan-toolbar-btn plan-toolbar-btn--ghost"
+                onClick={onExportIcs}
+                title="Download .ics calendar"
+                aria-label="Export calendar"
+              >
+                <Download size={12} />
+                .ics
+              </button>
+            )}
+            {onCopyMarkdown && (
+              <button
+                type="button"
+                className="plan-toolbar-btn plan-toolbar-btn--ghost"
+                onClick={onCopyMarkdown}
+                title="Copy plan as Markdown"
+                aria-label="Copy Markdown"
+              >
+                <Copy size={12} />
+              </button>
+            )}
             {!isSaved ? (
               <button
                 type="button"

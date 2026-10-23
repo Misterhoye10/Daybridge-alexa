@@ -26,17 +26,17 @@
 
 ---
 
-## 2. Priority Next Steps (To Win 1st Place)
+## 2. Win features — status (2026-10-23)
 
-When you resume, here are the top 5 high-impact features to build:
-
-| Priority | Feature | Implementation Details | Impact |
+| Priority | Feature | Status | Where |
 |:---|:---|:---|:---|
-| **1** | **Spoken Audio Feedback (TTS)** | Native Web Speech Synthesis (`window.speechSynthesis`) so Daybridge speaks back its spoken summary with a speaker toggle `[ 🔊 Voice: On \| Off ]` and gentle audio waveform. | Makes the demo feel like a real multimodal Echo Show device. |
-| **2** | **1-Click `.ics` Calendar Export** | Download RFC 5545 `.ics` file directly into Apple Calendar, Google Calendar, or Outlook + "Copy Markdown" button. | Proves real-world integration beyond a walled garden. |
-| **3** | **Smart Schedule Rebalancer** | "I only have 30 minutes tonight" $\rightarrow$ auto-chunks tasks, pushes remaining to Saturday, and renders an interactive diff with a "Confirm & Rebalance" button. | Shows active AI problem solving of human scheduling stress. |
-| **4** | **Truthful State Failure Drill** | Navbar toggle: `[ ⚡ Normal Mode \| 🛑 Test API Failure ]`. Simulates upstream 503 error; proves assistant never falsely claims success and offers clean retry. | Huge enterprise reliability differentiator. |
-| **5** | **1-Click Judge Scenario Selector** | Pill dropdown at the top of Chat with 4 pre-built end-to-end scenarios so judges can test everything in 60 seconds with 1 click. | Ensures judges see the best parts of the demo with zero typing friction. |
+| **1** | **Spoken Audio Feedback (TTS)** | **Shipped** | Assistant header volume toggle · `voice/tts.ts` |
+| **2** | **1-Click `.ics` + Markdown** | **Shipped** | Plan toolbar · `utils/planExport.ts` |
+| **3** | **Smart Schedule Rebalancer** | **Shipped** | Plan **30m** + judge pill 3 · confirm-before-write |
+| **4** | **Truthful State Failure Drill** | **Shipped** | Header **Fail drill** + judge pill 4 · no silent mock |
+| **5** | **1-Click Judge Scenario Selector** | **Shipped** | Welcome **60s demo** pills · `data/judgeScenarios.ts` |
+
+Also shipped for credibility: task toggle persist + rollback on saved plans; silent mock fallback **removed** from chat/confirm.
 
 ---
 
