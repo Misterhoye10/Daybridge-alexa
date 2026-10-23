@@ -535,7 +535,7 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
           </div>
 
           <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-            {onApplyAction && (
+            {onApplyAction && pendingAction.state !== 'completed' && (
               <button
                 onClick={() => onApplyAction(pendingAction)}
                 style={{

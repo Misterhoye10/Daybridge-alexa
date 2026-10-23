@@ -175,15 +175,25 @@ export const App: React.FC = () => {
   };
 
   // Apply suggested action
-  const handleApplyAction = (action: AssistantAction) => {
+  const handleApplyAction = async (action: AssistantAction) => {
     if (action.payload?.plan) {
       setActivePlan(action.payload.plan);
+    }
+    if (action.id) {
+      try {
+        await apiService.confirmAction(action.id, action.payload);
+      } catch (e) {
+        console.error(e);
+      }
     }
     setPendingAction({
       ...action,
       state: 'completed',
       label: 'Applied'
     });
+    setTimeout(() => {
+      setPendingAction(undefined);
+    }, 2500);
   };
 
   // Dismiss action
