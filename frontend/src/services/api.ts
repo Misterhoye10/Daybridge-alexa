@@ -9,7 +9,11 @@ import type {
   PlanChange
 } from '../types/daybridge';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
+    ? 'https://daybridge-alexa.onrender.com'
+    : 'http://localhost:5000');
 
 // Session UUID generator per API contract Section 1
 export function getSessionId(): string {
@@ -247,6 +251,7 @@ export const apiService = {
             ...task,
             title: 'Light DS Review & Cheat Sheet Setup',
             description: 'Reduced workload: 30 minutes reviewing high-level DS syntax & complexities.',
+            day: 'Monday (30m)',
             minutes: 30,
             estimatedMinutes: 30
           };
@@ -335,8 +340,8 @@ export const apiService = {
       };
     }
 
-    // Scenario A: "Help me prepare for a software engineering interview on Friday..."
-    if (lower.includes('interview') || lower.includes('software') || lower.includes('prepare')) {
+    // Scenario A: Flagship Software Engineering Interview Prep
+    if (lower.includes('interview') || lower.includes('software engineer') || (lower.includes('prep') && lower.includes('friday'))) {
       return {
         ok: true,
         conversation_id: 'conv_initial_prep',
@@ -358,6 +363,152 @@ export const apiService = {
           'Make the first day easier and add a mock interview',
           'I only have 30 minutes today. Adjust my schedule',
           'Show me the tasks I haven’t completed'
+        ]
+      };
+    }
+
+    // Question: "What should I work on first?" / Priority advice
+    if (lower.includes('work on first') || lower.includes('what first') || lower.includes('what should i do') || lower.includes('next task')) {
+      const currentPlan = payload.context?.plan || payload.currentPlanState || INITIAL_INTERVIEW_PREP_PLAN;
+      const nextTask = currentPlan.tasks.find((t: any) => !t.done && !t.isCompleted);
+      const taskTitle = nextTask ? nextTask.title : 'Review Core Data Structures & Complexities';
+      const taskDay = nextTask?.day || 'Today';
+      const taskMins = nextTask?.minutes || 60;
+
+      return {
+        ok: true,
+        trace: [
+          { stage: 'heard', label: 'Heard', ms: 10, ok: true },
+          { stage: 'understood', label: 'Analyzed Priorities', ms: 220, ok: true },
+          { stage: 'result', label: 'Ready', ms: 8, ok: true }
+        ],
+        message: {
+          text: `I recommend starting with: "${taskTitle}" (${taskDay}, ${taskMins}m). It is your highest priority active milestone. Focusing on one block at a time maximizes retention.`,
+          spoken: `I recommend starting with: ${taskTitle}.`
+        },
+        suggestedFollowUps: [
+          'Make the first day easier and add a mock interview',
+          'I only have 30 minutes today. Adjust my schedule',
+          'Start daily shutdown'
+        ]
+      };
+    }
+
+    // Question: "Show me the tasks I haven’t completed" / Incomplete tasks
+    if (lower.includes('haven’t completed') || lower.includes('havent completed') || lower.includes('not completed') || lower.includes('remaining tasks')) {
+      const currentPlan = payload.context?.plan || payload.currentPlanState || INITIAL_INTERVIEW_PREP_PLAN;
+      const incomplete = currentPlan.tasks.filter((t: any) => !t.done && !t.isCompleted);
+      const count = incomplete.length;
+      const preview = incomplete.slice(0, 3).map((t: any) => t.title).join(', ');
+
+      return {
+        ok: true,
+        trace: [
+          { stage: 'heard', label: 'Heard', ms: 8, ok: true },
+          { stage: 'understood', label: 'Queried Plan State', ms: 190, ok: true },
+          { stage: 'result', label: 'Ready', ms: 6, ok: true }
+        ],
+        message: {
+          text: `You have ${count} remaining tasks in this plan: ${preview}${count > 3 ? ` and ${count - 3} more` : ''}. All are scheduled and visible on your canvas.`,
+          spoken: `You have ${count} remaining tasks scheduled in this plan.`
+        },
+        suggestedFollowUps: [
+          'What should I work on first?',
+          'I only have 30 minutes today. Adjust my schedule',
+          'Start daily shutdown'
+        ]
+      };
+    }
+
+    // Dynamic Plan Generator for custom user requests (e.g. "Plan a 3-day trip to Seattle", "Help me build a project", etc.)
+    if (lower.includes('plan') || lower.includes('schedule') || lower.includes('organize') || lower.includes('trip') || lower.includes('study') || lower.includes('build')) {
+      const cleanGoal = payload.message.replace(/^(can you |please |help me |i want to )/i, '').trim();
+      const goalTitle = cleanGoal.length > 5 ? cleanGoal.charAt(0).toUpperCase() + cleanGoal.slice(1) : 'Action Sprint';
+      
+      const dynamicTasks: Task[] = [
+        {
+          id: `task-dyn-${Date.now()}-1`,
+          kind: 'task',
+          area: 'Planning',
+          title: `Initial Scope & Core Research: ${goalTitle}`,
+          description: `Define objectives, gather key materials, and outline milestone deliverables.`,
+          day: 'Day 1 (45m)',
+          minutes: 45,
+          estimatedMinutes: 45,
+          priority: 'high',
+          done: false,
+          isCompleted: false,
+          position: 0,
+          orderIndex: 0
+        },
+        {
+          id: `task-dyn-${Date.now()}-2`,
+          kind: 'task',
+          area: 'Execution',
+          title: `Primary Focus Block: Core Implementation`,
+          description: `Dedicated uninterrupted deep work block to build momentum.`,
+          day: 'Day 2 (60m)',
+          minutes: 60,
+          estimatedMinutes: 60,
+          priority: 'high',
+          done: false,
+          isCompleted: false,
+          position: 1,
+          orderIndex: 1
+        },
+        {
+          id: `task-dyn-${Date.now()}-3`,
+          kind: 'task',
+          area: 'Refinement',
+          title: `Review, Verification & Final Delivery`,
+          description: `Inspect outputs against initial goals and finalize documentation.`,
+          day: 'Day 3 (45m)',
+          minutes: 45,
+          estimatedMinutes: 45,
+          priority: 'medium',
+          done: false,
+          isCompleted: false,
+          position: 2,
+          orderIndex: 2
+        }
+      ];
+
+      const dynamicPlan: Plan = {
+        id: `plan-${Date.now()}`,
+        title: goalTitle,
+        summary: `Structured action plan tailored for: ${payload.message}`,
+        objective: cleanGoal,
+        status: 'saved',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        completionPercentage: 0,
+        dailyCapacityMinutes: 60,
+        tasks: dynamicTasks
+      };
+
+      return {
+        ok: true,
+        conversation_id: `conv_${Date.now()}`,
+        trace: defaultTrace,
+        message: {
+          text: `I've structured an actionable 3-part plan for "${goalTitle}". Each milestone is calibrated to a sustainable time block and loaded to your canvas.`,
+          spoken: `I've created a plan for ${goalTitle} and loaded it to your canvas.`
+        },
+        plan: dynamicPlan,
+        action: {
+          id: `act-${Date.now()}`,
+          type: 'create_plan',
+          label: 'Plan Created',
+          description: `Plan for "${goalTitle}" created and loaded to canvas`,
+          state: 'completed',
+          payload: dynamicPlan
+        },
+        suggestedFollowUps: [
+          'What should I work on first?',
+          'I only have 30 minutes today. Adjust my schedule',
+          'Start daily shutdown'
         ]
       };
     }

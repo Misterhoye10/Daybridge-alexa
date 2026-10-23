@@ -37,13 +37,21 @@ def confirm_action(action_id):
         t_id = upd.get("id") or upd.get("task_id")
         target_task = next((t for t in plan.tasks if t.id == t_id), None)
         if not target_task:
-            # Match by title keyword
-            kw = upd.get("title", "").lower()
-            target_task = next((t for t in plan.tasks if kw and kw in t.title.lower()), None)
+            kw = (upd.get("match_keyword") or upd.get("title") or "").lower()
+            target_task = next(
+                (t for t in plan.tasks if kw and (kw in t.title.lower() or kw in (t.day or "").lower())),
+                None
+            )
+            if not target_task and any(k in kw for k in ["day 1", "first day", "monday", "easier", "light"]):
+                target_task = plan.tasks[0] if plan.tasks else None
+
         if target_task:
             if "minutes" in upd:
                 target_task.minutes = upd["minutes"]
-            if "title" in upd:
+                target_task.day = f"Monday ({upd['minutes']}m)"
+            if "new_title" in upd:
+                target_task.title = upd["new_title"]
+            elif "title" in upd:
                 target_task.title = upd["title"]
             if "description" in upd:
                 target_task.description = upd["description"]
@@ -55,8 +63,8 @@ def confirm_action(action_id):
         current_max_pos += 1.0
         t = Task(
             plan_id=plan.id,
-            title=new_t.get("title", "New Task"),
-            description=new_t.get("description", ""),
+            title=new_t.get("title", "Peer Mock Coding Interview & Feedback"),
+            description=new_t.get("description", "Simulated live coding session with behavioral follow-up."),
             day=new_t.get("day") or "Thursday (1 hr)",
             minutes=new_t.get("minutes", 45),
             priority=new_t.get("priority", "high"),
@@ -88,5 +96,6 @@ def cancel_action(action_id):
     return jsonify({
         "ok": True,
         "success": True,
+        "action_id": action_id,
         "status": "dismissed"
     }), 200

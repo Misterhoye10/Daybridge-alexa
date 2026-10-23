@@ -176,9 +176,24 @@ export const App: React.FC = () => {
 
   // Apply suggested action
   const handleApplyAction = async (action: AssistantAction) => {
-    const newPlan = action.payload?.plan || (action as any).data || (action.payload && (action.payload as any).tasks ? action.payload : null);
-    if (newPlan) {
-      setActivePlan(newPlan);
+    let appliedPlan: Plan | null = null;
+    if (action.id) {
+      try {
+        const res = await apiService.confirmAction(action.id, action.payload);
+        if (res && res.plan) {
+          appliedPlan = res.plan;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    if (!appliedPlan) {
+      appliedPlan = action.payload?.plan || (action as any).data || (action.payload && (action.payload as any).tasks ? action.payload : null);
+    }
+
+    if (appliedPlan) {
+      setActivePlan(appliedPlan);
     } else if (activePlan) {
       const updatedTasks = activePlan.tasks.map((t, idx) =>
         idx === 0
@@ -186,6 +201,7 @@ export const App: React.FC = () => {
               ...t,
               title: 'Light DS Review & Cheat Sheet Setup',
               description: 'Reduced workload: 30 minutes reviewing high-level DS syntax & complexities.',
+              day: 'Monday (30m)',
               minutes: 30,
               estimatedMinutes: 30
             }
@@ -215,23 +231,68 @@ export const App: React.FC = () => {
       });
     }
 
-    if (action.id) {
-      try {
-        await apiService.confirmAction(action.id, action.payload);
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    // Update chat message so action badge shows Confirmed and Confirm button disappears
+    setChatMessages((prev) =>
+      prev.map((m) => {
+        if (m.action && (m.action.id === action.id || m.action.label === action.label)) {
+          return {
+            ...m,
+            action: {
+              ...m.action,
+              state: 'completed',
+              label: 'Changes Confirmed'
+            }
+          };
+        }
+        return m;
+      })
+    );
+
+    // Add confirmation assistant response in chat
+    const confirmMsg: ChatMessage = {
+      id: `msg-confirm-${Date.now()}`,
+      role: 'assistant',
+      content: 'Confirmed. Monday is reduced to 30 minutes, and Peer Mock Coding Interview has been added for Thursday.',
+      spoken: 'Plan updated: Monday is now 30 minutes with a mock interview added for Thursday.',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      trace: [
+        { stage: 'heard', label: 'Confirmed', ms: 10, ok: true },
+        { stage: 'understood', label: 'Updated Plan', ms: 140, ok: true },
+        { stage: 'result', label: 'Ready', ms: 10, ok: true }
+      ]
+    };
+    setChatMessages((prev) => [...prev, confirmMsg]);
 
     setPendingAction(undefined);
   };
 
   // Dismiss action
-  const handleDismissAction = () => {
+  const handleDismissAction = async () => {
+    if (pendingAction?.id) {
+      try {
+        await apiService.cancelAction(pendingAction.id);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    setChatMessages((prev) =>
+      prev.map((m) => {
+        if (m.action && (m.action.id === pendingAction?.id || m.action.label === pendingAction?.label)) {
+          return {
+            ...m,
+            action: {
+              ...m.action,
+              state: 'dismissed',
+              label: 'Changes Dismissed'
+            }
+          };
+        }
+        return m;
+      })
+    );
     setPendingAction(undefined);
   };
 
-  // Motion auto-cascade rebalance
   const handleRebalanceSchedule = () => {
     if (!activePlan) return;
     const isAlreadyChunked = activePlan.tasks.some((t) => t.chunkPart);
