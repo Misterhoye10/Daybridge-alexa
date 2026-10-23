@@ -1,45 +1,62 @@
 from flask import Blueprint, request, jsonify
 from app.models import db, Task, Plan
-from app.schemas.plan_schemas import TaskUpdateSchema, TaskCreateSchema
 
 tasks_bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
 
 @tasks_bp.route("/<task_id>", methods=["PATCH"])
 def update_task(task_id):
-    """Update task completion status or details."""
+    """Update task details or toggle completion status."""
     task = Task.query.get(task_id)
     if not task:
-        return jsonify({"success": False, "error": f"Task '{task_id}' not found."}), 404
+        return jsonify({
+            "ok": False,
+            "success": False,
+            "error": {"code": "not_found", "message": f"Task '{task_id}' not found.", "retryable": False}
+        }), 404
 
     data = request.get_json() or {}
-    try:
-        validated = TaskUpdateSchema(**data)
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 400
 
-    if validated.title is not None:
-        task.title = validated.title
-    if validated.description is not None:
-        task.description = validated.description
-    if validated.priority is not None:
-        task.priority = validated.priority
-    if validated.due_date is not None:
-        task.due_date = validated.due_date
-    if validated.estimated_minutes is not None:
-        task.estimated_minutes = validated.estimated_minutes
-    if validated.is_completed is not None:
-        task.is_completed = validated.is_completed
-    if validated.order is not None:
-        task.order = validated.order
+    if "done" in data:
+        task.done = bool(data["done"])
+    elif "is_completed" in data:
+        task.done = bool(data["is_completed"])
+    elif "isCompleted" in data:
+        task.done = bool(data["isCompleted"])
+
+    if "title" in data:
+        task.title = data["title"]
+    if "description" in data:
+        task.description = data["description"]
+    if "priority" in data:
+        task.priority = data["priority"]
+    if "day" in data:
+        task.day = data["day"]
+    elif "due_date" in data:
+        task.day = data["due_date"]
+    if "minutes" in data:
+        task.minutes = int(data["minutes"])
+    elif "estimated_minutes" in data:
+        task.minutes = int(data["estimated_minutes"])
+    if "position" in data:
+        task.position = float(data["position"])
 
     db.session.commit()
 
-    # Also return parent plan updated progress
     plan = Plan.query.get(task.plan_id)
+    done_count = sum(1 for t in plan.tasks if t.done) if plan else 0
+    total_count = len(plan.tasks) if plan else 0
+    minutes_left = sum(t.minutes for t in plan.tasks if not t.done) if plan else 0
+
     return jsonify({
+        "ok": True,
         "success": True,
         "task": task.to_dict(),
-        "plan_progress": plan.progress_percentage if plan else 0
+        "progress": {
+          "done": done_count,
+          "total": total_count,
+          "minutes_left": minutes_left
+        },
+        "plan_progress": plan.completion_percentage if plan else 0
     }), 200
 
 @tasks_bp.route("/<task_id>", methods=["DELETE"])
@@ -47,7 +64,11 @@ def delete_task(task_id):
     """Delete a single task."""
     task = Task.query.get(task_id)
     if not task:
-        return jsonify({"success": False, "error": f"Task '{task_id}' not found."}), 404
+        return jsonify({
+            "ok": False,
+            "success": False,
+            "error": {"code": "not_found", "message": f"Task '{task_id}' not found.", "retryable": False}
+        }), 404
 
     plan_id = task.plan_id
     db.session.delete(task)
@@ -55,7 +76,8 @@ def delete_task(task_id):
 
     plan = Plan.query.get(plan_id)
     return jsonify({
+        "ok": True,
         "success": True,
-        "message": f"Task '{task_id}' deleted.",
-        "plan_progress": plan.progress_percentage if plan else 0
+        "deleted_id": task_id,
+        "plan": plan.to_dict(include_tasks=True) if plan else None
     }), 200

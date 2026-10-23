@@ -13,8 +13,8 @@ def create_app(config_class=Config):
     app = Flask(__name__, template_folder=str(template_dir))
     app.config.from_object(config_class)
 
-    # Enable CORS for React/Vite frontend
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # Enable CORS for React/Vite frontends on Vercel and localhost
+    CORS(app, resources={r"/api/*": {"origins": "*"}}, expose_headers=["X-Session-Id"])
 
     # Determine database: test if PostgreSQL is accessible
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
@@ -37,19 +37,33 @@ def create_app(config_class=Config):
         db.create_all()
         logger.info(f"Database initialized: {app.config['SQLALCHEMY_DATABASE_URI'].split('@')[-1] if '@' in app.config['SQLALCHEMY_DATABASE_URI'] else 'sqlite'}")
 
+    # Middleware: Demo Failure Drill per API Contract Section 1
+    @app.before_request
+    def handle_demo_failure_drill():
+        if os.getenv("ALLOW_DEMO_FAIL") == "1" and request.headers.get("X-Demo-Fail") == "next":
+            return jsonify({
+                "ok": False,
+                "error": {
+                    "code": "demo_forced_failure",
+                    "message": "Forced failure drill for demonstration video testing.",
+                    "retryable": True
+                }
+            }), 503
+
     # Register API Blueprints
     from app.routes.plans import plans_bp
     from app.routes.tasks import tasks_bp
     from app.routes.chat import chat_bp
+    from app.routes.actions import actions_bp
 
     app.register_blueprint(plans_bp)
     app.register_blueprint(tasks_bp)
     app.register_blueprint(chat_bp)
+    app.register_blueprint(actions_bp)
 
     @app.route("/", methods=["GET"])
     @app.route("/demo", methods=["GET"])
     def index():
-        # If client accepts HTML, serve the interactive testing playground
         if "text/html" in request.headers.get("Accept", ""):
             return render_template("demo.html")
         return jsonify({
@@ -58,10 +72,13 @@ def create_app(config_class=Config):
             "tagline": "Say it. Plan it. Get it done.",
             "demo_ui": "/demo",
             "endpoints": [
-                "/api/health",
+                "/api/health (GET)",
                 "/api/chat (POST)",
+                "/api/actions/:id/confirm (POST)",
+                "/api/actions/:id/cancel (POST)",
                 "/api/plans (GET, POST)",
                 "/api/plans/:id (GET, PATCH, DELETE)",
+                "/api/plans/:id/tasks (POST)",
                 "/api/tasks/:id (PATCH, DELETE)"
             ]
         }), 200
@@ -69,6 +86,7 @@ def create_app(config_class=Config):
     @app.route("/api/health", methods=["GET"])
     def health():
         return jsonify({
+            "ok": True,
             "status": "healthy",
             "service": "Daybridge Backend",
             "version": "1.0.0"
