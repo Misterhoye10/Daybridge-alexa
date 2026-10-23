@@ -176,9 +176,45 @@ export const App: React.FC = () => {
 
   // Apply suggested action
   const handleApplyAction = async (action: AssistantAction) => {
-    if (action.payload?.plan) {
-      setActivePlan(action.payload.plan);
+    const newPlan = action.payload?.plan || (action as any).data || (action.payload && (action.payload as any).tasks ? action.payload : null);
+    if (newPlan) {
+      setActivePlan(newPlan);
+    } else if (activePlan) {
+      const updatedTasks = activePlan.tasks.map((t, idx) =>
+        idx === 0
+          ? {
+              ...t,
+              title: 'Light DS Review & Cheat Sheet Setup',
+              description: 'Reduced workload: 30 minutes reviewing high-level DS syntax & complexities.',
+              minutes: 30,
+              estimatedMinutes: 30
+            }
+          : t
+      );
+      const hasMock = updatedTasks.some((t) => t.title.toLowerCase().includes('mock'));
+      if (!hasMock) {
+        updatedTasks.splice(3, 0, {
+          id: `task-mock-${Date.now()}`,
+          title: 'Peer Mock Coding Interview & Feedback',
+          description: 'Simulated 45-minute live coding session with behavioral follow-up.',
+          day: 'Thursday (1 hr)',
+          minutes: 45,
+          estimatedMinutes: 45,
+          priority: 'high',
+          done: false,
+          isCompleted: false,
+          position: 3.5,
+          orderIndex: 3.5
+        });
+      }
+      setActivePlan({
+        ...activePlan,
+        title: `${activePlan.title} (Refined)`,
+        tasks: updatedTasks,
+        updatedAt: new Date().toISOString()
+      });
     }
+
     if (action.id) {
       try {
         await apiService.confirmAction(action.id, action.payload);
@@ -186,14 +222,8 @@ export const App: React.FC = () => {
         console.error(e);
       }
     }
-    setPendingAction({
-      ...action,
-      state: 'completed',
-      label: 'Applied'
-    });
-    setTimeout(() => {
-      setPendingAction(undefined);
-    }, 2500);
+
+    setPendingAction(undefined);
   };
 
   // Dismiss action

@@ -176,7 +176,7 @@ export function setDemoFailNext(val: boolean) {
 async function tryFetch<T>(endpoint: string, options?: RequestInit): Promise<T | null> {
   try {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 2500); // 2.5s quick timeout for local backend check
+    const id = setTimeout(() => controller.abort(), 20000); // 2.5s quick timeout for local backend check
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Session-Id': getSessionId(),
@@ -237,33 +237,6 @@ export const apiService = {
       { stage: 'tool', label: 'Prepared plan', tool: 'create_plan', ms: 410, ok: true },
       { stage: 'result', label: 'Ready', ms: 12, ok: true }
     ];
-
-    // Scenario A: "Help me prepare for a software engineering interview on Friday..."
-    if (lower.includes('interview') || lower.includes('software') || lower.includes('prepare')) {
-      return {
-        ok: true,
-        conversation_id: 'conv_initial_prep',
-        trace: defaultTrace,
-        message: {
-          text: "I've structured a 5-evening preparation plan for your software engineering interview this Friday. Each evening is scheduled for 60 minutes.",
-          spoken: "I've structured a 5-evening preparation plan for your interview on Friday."
-        },
-        plan: INITIAL_INTERVIEW_PREP_PLAN,
-        action: {
-          id: `act-${Date.now()}`,
-          type: 'create_plan',
-          label: 'Plan Created',
-          description: '5-Day Software Engineering Prep Plan created and loaded to canvas',
-          state: 'completed',
-          payload: INITIAL_INTERVIEW_PREP_PLAN
-        },
-        suggestedFollowUps: [
-          'Make the first day easier and add a mock interview',
-          'I only have 30 minutes today. Adjust my schedule',
-          'Show me the tasks I haven’t completed'
-        ]
-      };
-    }
 
     // Scenario B: "Make the first day easier and add a mock interview"
     if (lower.includes('easier') || lower.includes('mock interview') || lower.includes('first day')) {
@@ -358,6 +331,33 @@ export const apiService = {
           'Looks great, apply this to my plan',
           'What should I work on first?',
           'Cancel this change'
+        ]
+      };
+    }
+
+    // Scenario A: "Help me prepare for a software engineering interview on Friday..."
+    if (lower.includes('interview') || lower.includes('software') || lower.includes('prepare')) {
+      return {
+        ok: true,
+        conversation_id: 'conv_initial_prep',
+        trace: defaultTrace,
+        message: {
+          text: "I've structured a 5-evening preparation plan for your software engineering interview this Friday. Each evening is scheduled for 60 minutes.",
+          spoken: "I've structured a 5-evening preparation plan for your interview on Friday."
+        },
+        plan: INITIAL_INTERVIEW_PREP_PLAN,
+        action: {
+          id: `act-${Date.now()}`,
+          type: 'create_plan',
+          label: 'Plan Created',
+          description: '5-Day Software Engineering Prep Plan created and loaded to canvas',
+          state: 'completed',
+          payload: INITIAL_INTERVIEW_PREP_PLAN
+        },
+        suggestedFollowUps: [
+          'Make the first day easier and add a mock interview',
+          'I only have 30 minutes today. Adjust my schedule',
+          'Show me the tasks I haven’t completed'
         ]
       };
     }
