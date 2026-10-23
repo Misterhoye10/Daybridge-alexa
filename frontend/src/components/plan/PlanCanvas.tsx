@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Plan, Task, AssistantAction } from '../../types/daybridge';
-import { Logo } from '../brand/Logo';
 import { TaskItem } from './TaskItem';
 import { ActionBadge } from '../common/ActionBadge';
+import { EmptyState } from '../primitives/EmptyState';
+import { PlanSkeleton } from './PlanSkeleton';
 import {
   Calendar,
   Check,
@@ -11,13 +12,18 @@ import {
   CheckCircle2,
   Pencil,
   LayoutGrid,
-  List
+  List,
+  RotateCcw
 } from 'lucide-react';
+import { gsap, useGSAP } from '../../motion/setup';
+import { motion, RISE_Y } from '../../motion/tokens';
 
 interface PlanCanvasProps {
   plan: Plan | null;
   pendingAction?: AssistantAction;
   isSaved?: boolean;
+  isLoading?: boolean;
+  isSaving?: boolean;
   onSavePlan: () => void;
   onToggleTask: (taskId: string) => void;
   onUpdateTask: (task: Task) => void;
@@ -27,12 +33,15 @@ interface PlanCanvasProps {
   onAddNewTask?: () => void;
   onRebalanceSchedule?: () => void;
   onUpdatePlanTitle?: (newTitle: string) => void;
+  onAskForPlan?: () => void;
 }
 
 export const PlanCanvas: React.FC<PlanCanvasProps> = ({
   plan,
   pendingAction,
   isSaved = false,
+  isLoading = false,
+  isSaving = false,
   onSavePlan,
   onToggleTask,
   onUpdateTask,
@@ -40,12 +49,67 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
   onApplyAction,
   onDismissAction,
   onAddNewTask,
-  onUpdatePlanTitle
+  onUpdatePlanTitle,
+  onAskForPlan
 }) => {
   const [selectedDay, setSelectedDay] = useState<string>('All');
   const [viewMode, setViewMode] = useState<'timeline' | 'board'>('timeline');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(plan?.title || '');
+  const rootRef = useRef<HTMLDivElement>(null);
+  const prevPlanId = useRef<string | null>(plan?.id ?? null);
+  const prevActionState = useRef(pendingAction?.state);
+  const [flashTaskIds, setFlashTaskIds] = useState<string[]>([]);
+
+  // Plan arrives — fade up 8px together, no stagger (DESIGN §6)
+  useGSAP(
+    () => {
+      if (!plan) return;
+      const isArrival = prevPlanId.current !== plan.id;
+      prevPlanId.current = plan.id;
+      if (!isArrival) return;
+      const mm = gsap.matchMedia();
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        gsap.from('.plan-arrival', {
+          y: RISE_Y,
+          autoAlpha: 0,
+          duration: motion.slow,
+          ease: motion.enter
+        });
+      });
+      mm.add('(prefers-reduced-motion: reduce)', () => {
+        gsap.from('.plan-arrival', { autoAlpha: 0, duration: motion.fast });
+      });
+      return () => mm.revert();
+    },
+    { scope: rootRef, dependencies: [plan?.id] }
+  );
+
+  // Completed confirm — changed rows highlight then fade (duration.fade = 1200ms)
+  useEffect(() => {
+    const prev = prevActionState.current;
+    prevActionState.current = pendingAction?.state;
+    if (prev !== 'running' || pendingAction?.state !== 'completed' || !plan) return;
+    setFlashTaskIds(plan.tasks.map((t) => t.id));
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      setFlashTaskIds([]);
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      gsap.fromTo(
+        '.agent-task-card--flash',
+        { backgroundColor: 'var(--color-state-completed-bg)' },
+        {
+          backgroundColor: 'var(--color-bg-surface)',
+          duration: motion.fade,
+          ease: motion.standard,
+          onComplete: () => setFlashTaskIds([])
+        }
+      );
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingAction?.state, plan]);
 
   const handleStartEditTitle = () => {
     if (!plan) return;
@@ -60,45 +124,30 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
     setIsEditingTitle(false);
   };
 
+  // Loading a first plan — skeleton, not empty (#3)
+  if (!plan && isLoading) {
+    return <PlanSkeleton />;
+  }
+
+  // Active-plan empty ≠ saved-library empty (DESIGN microcopy for library stays in drawer)
   if (!plan) {
     return (
       <div
         style={{
           height: '100%',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '40px 32px',
-          textAlign: 'center',
           backgroundColor: 'var(--color-bg-surface)',
           minHeight: '480px'
         }}
       >
-        <div style={{ marginBottom: '16px' }}>
-          <Logo size="lg" showWordmark={false} />
-        </div>
-        <h3
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 'var(--font-size-h1)',
-            fontWeight: 600,
-            marginBottom: '8px',
-            color: 'var(--color-text-primary)'
-          }}
-        >
-          No saved plans yet.
-        </h3>
-        <p
-          style={{
-            fontSize: 'var(--font-size-body)',
-            color: 'var(--color-text-secondary)',
-            maxWidth: '360px',
-            lineHeight: 'var(--line-height-body)'
-          }}
-        >
-          Ask for one, then save it here.
-        </p>
+        <EmptyState
+          headline="No plan open"
+          supportText="Ask on the left for a goal and how much time you have. I'll build the plan here."
+          actionLabel={onAskForPlan ? 'Ask for a plan' : undefined}
+          onAction={onAskForPlan}
+        />
       </div>
     );
   }
@@ -140,6 +189,7 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
 
   return (
     <div
+      ref={rootRef}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -150,8 +200,10 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
     >
       {/* Calm, Precision Header */}
       <div
+        className="panel-pad plan-arrival"
         style={{
-          padding: '20px 24px 16px',
+          paddingTop: '16px',
+          paddingBottom: '14px',
           borderBottom: '1px solid var(--color-border-default)',
           backgroundColor: 'var(--color-bg-surface)'
         }}
@@ -267,6 +319,9 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
             {!isSaved ? (
               <button
                 onClick={onSavePlan}
+                disabled={isSaving}
+                aria-busy={isSaving}
+                title={isSaving ? 'Saving…' : 'Save plan to library'}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -278,12 +333,13 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
                   border: 'none',
                   fontWeight: 600,
                   fontSize: '11px',
-                  cursor: 'pointer',
+                  cursor: isSaving ? 'wait' : 'pointer',
+                  opacity: isSaving ? 0.7 : 1,
                   transition: 'background-color var(--duration-fast) var(--ease-standard)'
                 }}
               >
                 <Bookmark size={12} />
-                Save plan
+                {isSaving ? 'Saving…' : 'Save plan'}
               </button>
             ) : (
               <span
@@ -501,15 +557,21 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
       {/* Suggested Action Bar (PRD Section 4 & 8) */}
       {pendingAction && (
         <div
+          className="panel-pad"
           style={{
-            padding: '12px 24px',
+            paddingTop: '12px',
+            paddingBottom: '12px',
             backgroundColor:
               pendingAction.state === 'awaiting_confirmation'
                 ? 'var(--color-state-awaiting-bg)'
+                : pendingAction.state === 'failed'
+                ? 'var(--color-state-failed-bg)'
                 : 'var(--color-state-suggested-bg)',
             borderBottom: `1px solid ${
               pendingAction.state === 'awaiting_confirmation'
                 ? 'var(--color-state-awaiting-border)'
+                : pendingAction.state === 'failed'
+                ? 'var(--color-state-failed-border)'
                 : 'var(--color-state-suggested-border)'
             }`,
             display: 'flex',
@@ -535,28 +597,66 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
           </div>
 
           <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-            {onApplyAction && pendingAction.state !== 'completed' && (
+            {onApplyAction &&
+              (pendingAction.state === 'awaiting_confirmation' ||
+                pendingAction.state === 'suggested') && (
+                <button
+                  type="button"
+                  onClick={() => onApplyAction(pendingAction)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '5px 12px',
+                    backgroundColor: 'var(--color-action-primary)',
+                    color: 'var(--color-action-on-primary)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--font-size-label)',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    minHeight: '36px'
+                  }}
+                >
+                  <Check size={12} /> Confirm changes
+                </button>
+              )}
+            {onApplyAction && pendingAction.state === 'failed' && (
               <button
+                type="button"
                 onClick={() => onApplyAction(pendingAction)}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '4px',
                   padding: '5px 12px',
-                  backgroundColor: 'var(--color-action-primary)',
-                  color: 'var(--color-action-on-primary)',
-                  border: 'none',
+                  backgroundColor: 'var(--color-bg-surface)',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border-default)',
                   borderRadius: 'var(--radius-md)',
                   fontSize: 'var(--font-size-label)',
                   fontWeight: 600,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  minHeight: '36px'
                 }}
               >
-                <Check size={12} /> Confirm changes
+                <RotateCcw size={12} /> Retry
               </button>
             )}
-            {onDismissAction && (
+            {pendingAction.state === 'running' && (
+              <span
+                style={{
+                  fontSize: 'var(--font-size-label)',
+                  color: 'var(--color-text-secondary)',
+                  alignSelf: 'center'
+                }}
+              >
+                Applying…
+              </span>
+            )}
+            {onDismissAction && pendingAction.state !== 'running' && (
               <button
+                type="button"
                 onClick={onDismissAction}
                 style={{
                   padding: '5px 10px',
@@ -565,7 +665,8 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
                   border: '1px solid var(--color-border-default)',
                   borderRadius: 'var(--radius-md)',
                   fontSize: 'var(--font-size-label)',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  minHeight: '36px'
                 }}
               >
                 Dismiss
@@ -577,19 +678,20 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
 
       {/* Content Area: Dual-View Mode (Timeline with 3-tier depth vs Status Board Triage) */}
       <div
-        className="no-scrollbar"
+        className="no-scrollbar panel-pad plan-arrival"
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '20px 24px'
+          paddingTop: '16px',
+          paddingBottom: '20px'
         }}
       >
         {viewMode === 'board' ? (
           /* Status Board Kanban View */
           <div
+            className="plan-board-grid"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
               gap: '14px',
               alignItems: 'start',
               paddingBottom: '16px'
@@ -667,6 +769,7 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
                       onUpdateTask={onUpdateTask}
                       onDeleteTask={onDeleteTask}
                       isSuggested={true}
+                      isFlashing={flashTaskIds.includes(task.id)}
                     />
                   ))}
                 </div>
@@ -745,6 +848,7 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
                       onUpdateTask={onUpdateTask}
                       onDeleteTask={onDeleteTask}
                       isSuggested={false}
+                      isFlashing={flashTaskIds.includes(task.id)}
                     />
                   ))}
                 </div>
@@ -823,6 +927,7 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
                       onUpdateTask={onUpdateTask}
                       onDeleteTask={onDeleteTask}
                       isSuggested={false}
+                      isFlashing={flashTaskIds.includes(task.id)}
                     />
                   ))}
                 </div>
@@ -904,6 +1009,7 @@ export const PlanCanvas: React.FC<PlanCanvasProps> = ({
                         onUpdateTask={onUpdateTask}
                         onDeleteTask={onDeleteTask}
                         isSuggested={pendingAction?.payload?.taskId === task.id}
+                        isFlashing={flashTaskIds.includes(task.id)}
                       />
                     ))}
                   </div>

@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import type { Plan } from '../../types/daybridge';
 import { ProgressBar } from '../plan/ProgressBar';
-import { X, Trash2, Calendar, FolderOpen, ArrowRight } from 'lucide-react';
+import { Skeleton } from '../primitives/Skeleton';
+import { X, Trash2, Calendar, FolderOpen, ArrowRight, AlertCircle, RotateCcw } from 'lucide-react';
+import { gsap, useGSAP } from '../../motion/setup';
+import { motion } from '../../motion/tokens';
 
 interface SavedPlansDrawerProps {
   isOpen: boolean;
@@ -10,6 +13,9 @@ interface SavedPlansDrawerProps {
   activePlanId?: string;
   onSelectPlan: (plan: Plan) => void;
   onDeletePlan: (planId: string) => void;
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 export const SavedPlansDrawer: React.FC<SavedPlansDrawerProps> = ({
@@ -18,9 +24,13 @@ export const SavedPlansDrawer: React.FC<SavedPlansDrawerProps> = ({
   savedPlans,
   activePlanId,
   onSelectPlan,
-  onDeletePlan
+  onDeletePlan,
+  isLoading = false,
+  error = null,
+  onRetry
 }) => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,10 +44,41 @@ export const SavedPlansDrawer: React.FC<SavedPlansDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Drawer open — DESIGN §6: panels/drawers use slow + ease.enter
+  useGSAP(
+    () => {
+      if (!isOpen) return;
+      const mm = gsap.matchMedia();
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        gsap.fromTo(
+          '.saved-plans-scrim',
+          { autoAlpha: 0 },
+          { autoAlpha: 1, duration: motion.base, ease: motion.standard }
+        );
+        gsap.fromTo(
+          '.saved-plans-sheet',
+          { x: 28, autoAlpha: 0 },
+          { x: 0, autoAlpha: 1, duration: motion.slow, ease: motion.enter }
+        );
+      });
+      mm.add('(prefers-reduced-motion: reduce)', () => {
+        gsap.fromTo(
+          '.saved-plans-scrim, .saved-plans-sheet',
+          { autoAlpha: 0 },
+          { autoAlpha: 1, duration: motion.fast }
+        );
+      });
+      return () => mm.revert();
+    },
+    { scope: rootRef, dependencies: [isOpen] }
+  );
+
   if (!isOpen) return null;
 
   return (
     <div
+      ref={rootRef}
+      className="saved-plans-scrim"
       style={{
         position: 'fixed',
         top: 0,
@@ -48,8 +89,7 @@ export const SavedPlansDrawer: React.FC<SavedPlansDrawerProps> = ({
         backdropFilter: 'blur(4px)',
         zIndex: 9999,
         display: 'flex',
-        justifyContent: 'flex-end',
-        transition: 'opacity var(--duration-base) var(--ease-standard)'
+        justifyContent: 'flex-end'
       }}
       onClick={onClose}
     >
@@ -57,6 +97,7 @@ export const SavedPlansDrawer: React.FC<SavedPlansDrawerProps> = ({
         role="dialog"
         aria-modal="true"
         aria-label="Saved Plans"
+        className="saved-plans-sheet"
         style={{
           width: '100%',
           maxWidth: '460px',
@@ -135,7 +176,70 @@ export const SavedPlansDrawer: React.FC<SavedPlansDrawerProps> = ({
             gap: '14px'
           }}
         >
-          {savedPlans.length === 0 ? (
+          {error && (
+            <div
+              role="alert"
+              style={{
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-state-failed-bg)',
+                border: '1px solid var(--color-state-failed-border)',
+                color: 'var(--color-state-failed-text)',
+                fontSize: 'var(--font-size-body)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                marginBottom: '4px'
+              }}
+            >
+              <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+              <span style={{ flex: 1 }}>{error}</span>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    border: '1px solid var(--color-state-failed-border)',
+                    background: 'var(--color-bg-surface)',
+                    color: 'var(--color-state-failed-text)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '6px 10px',
+                    fontWeight: 600,
+                    fontSize: 'var(--font-size-label)',
+                    cursor: 'pointer',
+                    minHeight: '44px'
+                  }}
+                >
+                  <RotateCcw size={12} /> Retry
+                </button>
+              )}
+            </div>
+          )}
+
+          {isLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }} role="status" aria-busy="true" aria-label="Loading saved plans">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '16px',
+                    border: '1px solid var(--color-border-default)',
+                    borderRadius: 'var(--radius-md)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}
+                >
+                  <Skeleton width="70%" height="18px" />
+                  <Skeleton width="100%" height="12px" />
+                  <Skeleton width="100%" height="8px" borderRadius="var(--radius-pill)" />
+                </div>
+              ))}
+            </div>
+          ) : savedPlans.length === 0 && !error ? (
             <div
               style={{
                 textAlign: 'center',
@@ -157,7 +261,7 @@ export const SavedPlansDrawer: React.FC<SavedPlansDrawerProps> = ({
                 Ask for one, then save it here.
               </p>
             </div>
-          ) : (
+          ) : savedPlans.length === 0 ? null : (
             savedPlans.map((plan) => {
               const isActive = plan.id === activePlanId;
               const completedCount = plan.tasks.filter((t) => t.isCompleted).length;

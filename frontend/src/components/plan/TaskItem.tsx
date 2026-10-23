@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Task, TaskPriority } from '../../types/daybridge';
 import {
   Check,
@@ -17,6 +17,8 @@ import {
   Zap,
   Loader2
 } from 'lucide-react';
+import { gsap } from '../../motion/setup';
+import { motion } from '../../motion/tokens';
 
 interface TaskItemProps {
   task: Task;
@@ -24,6 +26,7 @@ interface TaskItemProps {
   onUpdateTask?: (updated: Task) => void;
   onDeleteTask?: (taskId: string) => void;
   isSuggested?: boolean;
+  isFlashing?: boolean;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -31,13 +34,16 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onToggleComplete,
   onUpdateTask,
   onDeleteTask,
-  isSuggested = false
+  isSuggested = false,
+  isFlashing = false
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [showSubtasks, setShowSubtasks] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const checkRef = useRef<HTMLButtonElement>(null);
+  const wasCompleted = useRef(Boolean(task.isCompleted || task.done));
 
   const [editedTitle, setEditedTitle] = useState(task.title);
   const [editedDescription, setEditedDescription] = useState(task.description || '');
@@ -48,6 +54,19 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const completedSubtasks = subtasks.filter((s) => s.isCompleted || s.done).length;
   const isCompleted = Boolean(task.isCompleted || task.done);
   const minutes = task.estimatedMinutes || task.minutes || 0;
+
+  // Task checked — box fills (fast); CSS handles strike; GSAP confirms the press (#5, #19)
+  useEffect(() => {
+    const justChecked = isCompleted && !wasCompleted.current;
+    wasCompleted.current = isCompleted;
+    if (!justChecked || !checkRef.current) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    gsap.fromTo(
+      checkRef.current,
+      { scale: 0.86 },
+      { scale: 1, duration: motion.fast, ease: motion.enter }
+    );
+  }, [isCompleted]);
 
   const handleSave = () => {
     if (onUpdateTask) {
@@ -120,7 +139,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="agent-task-card"
+      className={`agent-task-card${isFlashing ? ' agent-task-card--flash' : ''}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -285,6 +304,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
             {/* Apple / Things 3 20px Precision Checkbox */}
             <button
+              ref={checkRef}
               onClick={() => onToggleComplete(task.id)}
               aria-label={isCompleted ? `Mark "${task.title}" incomplete` : `Mark "${task.title}" complete`}
               style={{

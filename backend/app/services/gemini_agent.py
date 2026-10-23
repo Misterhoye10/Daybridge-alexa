@@ -64,15 +64,19 @@ You must respond ONLY with a valid JSON object matching this schema:
 
 BEHAVIOR RULES:
 1. If user asks to organize a goal or prep for an interview:
-   - action_type = "CREATE_PLAN", action_status = "completed"
+   - action_type = "CREATE_PLAN", action_status = "suggested"
+   - Use PRESENT tense: "I can structure..." — NEVER past tense until the client confirms a write.
    - populate plan_title, objective, target_date, daily_capacity_minutes, and tasks array.
+   - The plan is a draft. Do not claim it was saved.
 2. If user requests modifications to an existing active plan (e.g. "make the first day easier and add a mock interview"):
    - action_type = "UPDATE_PLAN", action_status = "awaiting_confirmation"
+   - Use "I can..." / "This will..." — never "I've updated" until confirmed.
    - put modified tasks into task_updates (e.g. reduce minutes to 30).
    - put newly added tasks into tasks_to_add.
 3. If user asks advice ("What should I work on first?"):
    - action_type = "NONE", action_status = "none"
    - answer encouragingly referencing active plan tasks.
+4. Voice: Calm, capable, honest. No emoji. No exclamation marks.
 """
 
 class GeminiAgent:
@@ -169,10 +173,10 @@ class GeminiAgent:
                 }
             else:
                 parsed = {
-                    "message": "I've structured a 5-evening preparation plan for your interview on Friday. Each evening is scheduled for 60 minutes.",
-                    "spoken": "I've structured a 5-evening preparation plan for your interview on Friday.",
+                    "message": "I can structure a 5-evening preparation plan for your interview on Friday. Each evening is 60 minutes. Review it on the canvas, then save when it looks right.",
+                    "spoken": "I can structure a 5-evening preparation plan for your interview on Friday.",
                     "action_type": "CREATE_PLAN",
-                    "action_status": "completed",
+                    "action_status": "suggested",
                     "plan_title": "Software Engineering Interview Prep",
                     "objective": "Ace technical and behavioral rounds through systematic review.",
                     "daily_capacity_minutes": 60,
@@ -204,12 +208,12 @@ class GeminiAgent:
                 tool_name = "create_plan"
                 tasks_input = parsed.get("tasks", [])
                 new_plan = Plan(
-                    id=f"plan_{uuid.uuid4().hex[:12]}",
+                    id=f"draft_{uuid.uuid4().hex[:12]}",
                     session_id=session_id or "default_session",
                     title=parsed.get("plan_title", "Software Engineering Interview Prep"),
                     objective=parsed.get("objective") or parsed.get("plan_summary") or "",
                     summary=parsed.get("plan_summary") or parsed.get("objective") or "",
-                    status="saved",
+                    status="draft",
                     daily_capacity_minutes=parsed.get("daily_capacity_minutes", 60)
                 )
                 db.session.add(new_plan)
@@ -288,6 +292,11 @@ class GeminiAgent:
             {"stage": "result", "label": "Ready", "ms": 8, "ok": True}
         ]
 
+        # Contract: at most one of plan | action is non-null. CREATE returns plan draft only.
+        response_action = proposed_action_dict
+        if response_action is None and created_plan_dict is None and action_type not in ("NONE", "none", None, ""):
+            response_action = None
+
         return {
             "ok": True,
             "success": True,
@@ -299,11 +308,7 @@ class GeminiAgent:
             },
             "reply": reply_text,
             "plan": created_plan_dict,
-            "action": proposed_action_dict or {
-                "type": action_type,
-                "status": "completed" if created_plan_dict else "none",
-                "data": created_plan_dict
-            },
+            "action": response_action,
             "references": [],
             "tasks": None,
             "suggestedFollowUps": suggested_followups

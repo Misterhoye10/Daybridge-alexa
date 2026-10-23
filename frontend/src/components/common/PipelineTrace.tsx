@@ -1,7 +1,18 @@
 import React from 'react';
 import { Check, Loader2, AlertCircle } from 'lucide-react';
 
-export type PipelineStage = 'idle' | 'heard' | 'understood' | 'acting' | 'done' | 'failed';
+/** DESIGN: Heard → Understood → Planning → Ready */
+export type PipelineStage =
+  | 'idle'
+  | 'heard'
+  | 'understood'
+  | 'planning'
+  | 'ready'
+  | 'failed'
+  /** @deprecated alias — map to planning */
+  | 'acting'
+  /** @deprecated alias — map to ready */
+  | 'done';
 
 interface PipelineTraceProps {
   stage: PipelineStage;
@@ -12,21 +23,28 @@ interface PipelineTraceProps {
 const STAGES: { id: PipelineStage; label: string }[] = [
   { id: 'heard', label: 'Heard' },
   { id: 'understood', label: 'Understood' },
-  { id: 'acting', label: 'Acting' },
-  { id: 'done', label: 'Done' }
+  { id: 'planning', label: 'Planning' },
+  { id: 'ready', label: 'Ready' }
 ];
 
+function normalize(stage: PipelineStage): PipelineStage {
+  if (stage === 'acting') return 'planning';
+  if (stage === 'done') return 'ready';
+  return stage;
+}
+
 export const PipelineTrace: React.FC<PipelineTraceProps> = ({
-  stage,
+  stage: rawStage,
   toolName,
   isCollapsed = false
 }) => {
+  const stage = normalize(rawStage);
   if (stage === 'idle') return null;
 
   const currentStageIndex = STAGES.findIndex((s) => s.id === stage);
   const isFailed = stage === 'failed';
 
-  if (isCollapsed && stage === 'done') {
+  if (isCollapsed && stage === 'ready') {
     return (
       <div
         role="status"
@@ -43,8 +61,15 @@ export const PipelineTrace: React.FC<PipelineTraceProps> = ({
           backgroundColor: 'var(--color-bg-sunken)'
         }}
       >
-        <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--color-state-completed-text)' }} />
-        <span>Completed {toolName && `[${toolName}]`}</span>
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            backgroundColor: 'var(--color-state-completed-text)'
+          }}
+        />
+        <span>Ready {toolName ? `[${toolName}]` : ''}</span>
       </div>
     );
   }
@@ -77,19 +102,15 @@ export const PipelineTrace: React.FC<PipelineTraceProps> = ({
         }}
       >
         {STAGES.map((s, idx) => {
+          const failIndex = isFailed ? STAGES.length - 1 : currentStageIndex;
           const isPassed = !isFailed && currentStageIndex > idx;
           const isCurrent = !isFailed && currentStageIndex === idx;
+          const showFail = isFailed && idx === failIndex;
 
           return (
             <React.Fragment key={s.id}>
               {idx > 0 && (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    color: 'var(--color-border-default)',
-                    fontSize: '10px'
-                  }}
-                >
+                <span aria-hidden="true" style={{ color: 'var(--color-border-default)', fontSize: '10px' }}>
                   →
                 </span>
               )}
@@ -99,19 +120,19 @@ export const PipelineTrace: React.FC<PipelineTraceProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '4px',
-                  fontWeight: isCurrent ? 600 : 400,
+                  fontWeight: isCurrent || showFail ? 600 : 400,
                   color: isPassed
                     ? 'var(--color-state-completed-text)'
                     : isCurrent
                     ? 'var(--color-action-primary)'
-                    : isFailed && idx === currentStageIndex
+                    : showFail
                     ? 'var(--color-state-failed-text)'
                     : 'var(--color-text-tertiary)'
                 }}
               >
                 {isPassed && <Check size={12} strokeWidth={2.5} />}
                 {isCurrent && <Loader2 size={12} className="spin" />}
-                {isFailed && idx === currentStageIndex && <AlertCircle size={12} />}
+                {showFail && <AlertCircle size={12} />}
                 <span>{s.label}</span>
               </li>
             </React.Fragment>

@@ -14,6 +14,26 @@ const API_BASE_URL =
   (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
     ? 'https://daybridge-alexa.onrender.com'
     : 'http://localhost:5000');
+/** Explicit demo/sim mode only. Production must omit this — never silent mock. */
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1';
+const API_TIMEOUT_MS = 30_000;
+
+const COPY = {
+  networkLost: "Connection lost. Your conversation is safe. Retry when you're back online.",
+  invalidAi: "That plan didn't come through right. Try again, or rephrase your request.",
+  timeout: "That took too long. Try again, or rephrase your request."
+} as const;
+
+export class DaybridgeApiError extends Error {
+  code: string;
+  retryable: boolean;
+  constructor(code: string, message: string, retryable = true) {
+    super(message);
+    this.name = 'DaybridgeApiError';
+    this.code = code;
+    this.retryable = retryable;
+  }
+}
 
 // Session UUID generator per API contract Section 1
 export function getSessionId(): string {
@@ -57,7 +77,6 @@ export const INITIAL_INTERVIEW_PREP_PLAN: Plan = {
       deadlineType: 'SOFT',
       isChunkable: true,
       scheduleStatus: 'completed',
-      categoryEmoji: '🧠',
       subtasks: [
         { id: 'sub-1a', kind: 'task', area: 'Engineering', title: 'Binary Trees & Traversals', description: 'In-order, pre-order, and level-order traversal patterns', minutes: 25, estimatedMinutes: 25, priority: 'high', done: true, isCompleted: true, position: 0, orderIndex: 0, day: 'Monday (1 hr)' },
         { id: 'sub-1b', kind: 'task', area: 'Engineering', title: 'Hash Table collisions & load factor', description: 'Chaining vs open addressing tradeoffs', minutes: 20, estimatedMinutes: 20, priority: 'high', done: true, isCompleted: true, position: 1, orderIndex: 1, day: 'Monday (1 hr)' },
@@ -81,7 +100,6 @@ export const INITIAL_INTERVIEW_PREP_PLAN: Plan = {
       deadlineType: 'SOFT',
       isChunkable: true,
       scheduleStatus: 'scheduled',
-      categoryEmoji: '💻',
       subtasks: [
         { id: 'sub-2a', kind: 'task', area: 'Engineering', title: 'Longest Substring Without Repeating Characters', description: 'Set/map index tracking', minutes: 30, estimatedMinutes: 30, priority: 'high', done: false, isCompleted: false, position: 0, orderIndex: 0, day: 'Tuesday (1 hr)' },
         { id: 'sub-2b', kind: 'task', area: 'Engineering', title: 'Container With Most Water', description: 'Greedy inward pointer convergence', minutes: 30, estimatedMinutes: 30, priority: 'high', done: false, isCompleted: false, position: 1, orderIndex: 1, day: 'Tuesday (1 hr)' }
@@ -105,8 +123,7 @@ export const INITIAL_INTERVIEW_PREP_PLAN: Plan = {
       orderIndex: 2,
       deadlineType: 'SOFT',
       isChunkable: false,
-      scheduleStatus: 'scheduled',
-      categoryEmoji: '📊'
+      scheduleStatus: 'scheduled'
     },
     {
       id: 'task-4',
@@ -126,8 +143,7 @@ export const INITIAL_INTERVIEW_PREP_PLAN: Plan = {
       orderIndex: 3,
       deadlineType: 'HARD',
       isChunkable: false,
-      scheduleStatus: 'scheduled',
-      categoryEmoji: '🎙️'
+      scheduleStatus: 'scheduled'
     },
     {
       id: 'task-5',
@@ -145,8 +161,7 @@ export const INITIAL_INTERVIEW_PREP_PLAN: Plan = {
       orderIndex: 4,
       deadlineType: 'SOFT',
       isChunkable: false,
-      scheduleStatus: 'scheduled',
-      categoryEmoji: '🗣️'
+      scheduleStatus: 'scheduled'
     },
     {
       id: 'task-6',
@@ -165,8 +180,7 @@ export const INITIAL_INTERVIEW_PREP_PLAN: Plan = {
       orderIndex: 5,
       deadlineType: 'HARD',
       isChunkable: false,
-      scheduleStatus: 'scheduled',
-      categoryEmoji: '📍'
+      scheduleStatus: 'scheduled'
     }
   ]
 };
@@ -177,46 +191,70 @@ export function setDemoFailNext(val: boolean) {
   demoFailNext = val;
 }
 
-async function tryFetch<T>(endpoint: string, options?: RequestInit): Promise<T | null> {
+/** Real network call. Throws DaybridgeApiError — never silently succeeds. */
+async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Session-Id': getSessionId(),
+    ...((options?.headers as Record<string, string>) || {})
+  };
+
+  if (demoFailNext) {
+    headers['X-Demo-Fail'] = 'next';
+    demoFailNext = false;
+  }
+
   try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 20000); // 2.5s quick timeout for local backend check
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-Session-Id': getSessionId(),
-      ...((options?.headers as Record<string, string>) || {})
-    };
-
-    if (demoFailNext) {
-      headers['X-Demo-Fail'] = 'next';
-      demoFailNext = false;
-    }
-
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
       signal: controller.signal
     });
-    clearTimeout(id);
-    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-    const data = await res.json();
-    return data;
-  } catch {
-    // Return null to trigger smart simulation fallback
-    return null;
+
+    let data: any = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok || (data && data.ok === false)) {
+      const err = data?.error;
+      throw new DaybridgeApiError(
+        err?.code || (res.status === 502 ? 'ai_unavailable' : 'server_error'),
+        err?.message || COPY.invalidAi,
+        err?.retryable ?? true
+      );
+    }
+
+    return data as T;
+  } catch (e) {
+    if (e instanceof DaybridgeApiError) throw e;
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new DaybridgeApiError('ai_unavailable', COPY.timeout, true);
+    }
+    throw new DaybridgeApiError('server_error', COPY.networkLost, true);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
 export const apiService = {
   // GET /api/health
   async getHealth(): Promise<{ ok: boolean }> {
-    const remote = await tryFetch<{ ok: boolean }>('/api/health');
-    return remote || { ok: true };
+    if (USE_MOCK) return { ok: true };
+    return apiFetch<{ ok: boolean }>('/api/health');
   },
 
   // POST /api/chat
   async sendChat(payload: ApiChatRequest): Promise<ApiChatResponse> {
-    const remoteResult = await tryFetch<ApiChatResponse>('/api/chat', {
+    if (USE_MOCK) {
+      return this.mockChat(payload);
+    }
+
+    return apiFetch<ApiChatResponse>('/api/chat', {
       method: 'POST',
       body: JSON.stringify({
         message: payload.message,
@@ -228,10 +266,10 @@ export const apiService = {
         }
       })
     });
+  },
 
-    if (remoteResult && remoteResult.ok) return remoteResult;
-
-    // Smart Local AI Simulation handling PRD & API Contract scenarios
+  /** Local simulation — only when VITE_USE_MOCK=1 */
+  mockChat(payload: ApiChatRequest): ApiChatResponse {
     const lower = payload.message.toLowerCase();
 
     // Default trace stages conforming to contract Section 2
@@ -242,7 +280,7 @@ export const apiService = {
       { stage: 'result', label: 'Ready', ms: 12, ok: true }
     ];
 
-    // Scenario B: "Make the first day easier and add a mock interview"
+    // Scenario B first — "mock interview" / "easier" also contain "interview" and must not hit Scenario A
     if (lower.includes('easier') || lower.includes('mock interview') || lower.includes('first day')) {
       const currentPlan = payload.context?.plan || payload.currentPlanState || INITIAL_INTERVIEW_PREP_PLAN;
       const updatedTasks = currentPlan.tasks.map((task, idx) => {
@@ -340,25 +378,27 @@ export const apiService = {
       };
     }
 
-    // Scenario A: Flagship Software Engineering Interview Prep
-    if (lower.includes('interview') || lower.includes('software engineer') || (lower.includes('prep') && lower.includes('friday'))) {
+    // Scenario A: draft plan — present tense; not completed until save
+    if (lower.includes('interview') || lower.includes('software') || lower.includes('prepare')) {
+      const draftPlan: Plan = {
+        ...INITIAL_INTERVIEW_PREP_PLAN,
+        id: `draft_${Date.now()}`,
+        status: 'draft',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       return {
         ok: true,
         conversation_id: 'conv_initial_prep',
         trace: defaultTrace,
         message: {
-          text: "I've structured a 5-evening preparation plan for your software engineering interview this Friday. Each evening is scheduled for 60 minutes.",
-          spoken: "I've structured a 5-evening preparation plan for your interview on Friday."
+          text: 'I can structure a 5-evening preparation plan for your software engineering interview this Friday. Each evening is 60 minutes. Review it on the canvas, then save when it looks right.',
+          spoken: 'I can structure a 5-evening preparation plan for your interview on Friday.'
         },
-        plan: INITIAL_INTERVIEW_PREP_PLAN,
-        action: {
-          id: `act-${Date.now()}`,
-          type: 'create_plan',
-          label: 'Plan Created',
-          description: '5-Day Software Engineering Prep Plan created and loaded to canvas',
-          state: 'completed',
-          payload: INITIAL_INTERVIEW_PREP_PLAN
-        },
+        plan: draftPlan,
+        action: null,
         suggestedFollowUps: [
           'Make the first day easier and add a mock interview',
           'I only have 30 minutes today. Adjust my schedule',
@@ -478,7 +518,7 @@ export const apiService = {
         title: goalTitle,
         summary: `Structured action plan tailored for: ${payload.message}`,
         objective: cleanGoal,
-        status: 'saved',
+        status: 'draft',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         createdAt: new Date().toISOString(),
@@ -493,18 +533,11 @@ export const apiService = {
         conversation_id: `conv_${Date.now()}`,
         trace: defaultTrace,
         message: {
-          text: `I've structured an actionable 3-part plan for "${goalTitle}". Each milestone is calibrated to a sustainable time block and loaded to your canvas.`,
-          spoken: `I've created a plan for ${goalTitle} and loaded it to your canvas.`
+          text: `I can structure a 3-part plan for "${goalTitle}". Each milestone fits a sustainable time block — review it on the canvas, then save when it looks right.`,
+          spoken: `I can structure a plan for ${goalTitle}.`
         },
         plan: dynamicPlan,
-        action: {
-          id: `act-${Date.now()}`,
-          type: 'create_plan',
-          label: 'Plan Created',
-          description: `Plan for "${goalTitle}" created and loaded to canvas`,
-          state: 'completed',
-          payload: dynamicPlan
-        },
+        action: null,
         suggestedFollowUps: [
           'What should I work on first?',
           'I only have 30 minutes today. Adjust my schedule',
@@ -513,7 +546,7 @@ export const apiService = {
       };
     }
 
-    // Scenario C: "I only have 30 minutes today..." / Motion Auto-Cascade
+    // Scenario C: rebalance — awaiting confirmation (tense follows state)
     if (lower.includes('30 minutes') || lower.includes('adjust') || lower.includes('rebalance') || lower.includes('cascade')) {
       const currentPlan = payload.context?.plan || payload.currentPlanState || INITIAL_INTERVIEW_PREP_PLAN;
       const rebalancedPlan = apiService.rebalancePlan(currentPlan, 30);
@@ -523,21 +556,21 @@ export const apiService = {
         trace: [
           { stage: 'heard', label: 'Heard', ms: 10, ok: true },
           { stage: 'understood', label: 'Understood', ms: 310, ok: true },
-          { stage: 'tool', label: 'Rebalanced schedule', tool: 'propose_plan_update', ms: 290, ok: true },
+          { stage: 'tool', label: 'Prepared a change', tool: 'propose_plan_update', ms: 290, ok: true },
           { stage: 'result', label: 'Ready', ms: 8, ok: true }
         ],
         message: {
-          text: "I've adjusted your schedule: Tuesday is capped at 30 minutes. The problem set was split into two 30-minute blocks, with Part 2 shifted to Wednesday.",
-          spoken: "I adjusted Tuesday to 30 minutes and shifted Part 2 to Wednesday."
+          text: 'I can cap Tuesday at 30 minutes, split the problem set into two blocks, and move Part 2 to Wednesday. Confirm to apply.',
+          spoken: 'I can cap Tuesday at 30 minutes and move Part 2 to Wednesday.'
         },
-        plan: rebalancedPlan,
+        plan: null,
         action: {
           id: `act-${Date.now()}`,
           type: 'reschedule_plan',
-          label: 'Schedule Adjusted',
-          description: 'Chunked Tuesday into 30m sprint and bumped Part 2 to Wednesday',
-          state: 'completed',
-          payload: rebalancedPlan
+          label: 'Awaiting Confirmation',
+          description: 'This will chunk Tuesday into a 30m sprint and bump Part 2 to Wednesday.',
+          state: 'awaiting_confirmation',
+          payload: { plan: rebalancedPlan }
         },
         suggestedFollowUps: [
           'Review workload capacity',
@@ -547,23 +580,23 @@ export const apiService = {
       };
     }
 
-    // Motion Cascade: Restore full 60m schedule
+    // Restore full 60m — awaiting confirmation
     if (lower.includes('restore') || lower.includes('full 60m')) {
       return {
         ok: true,
         trace: defaultTrace,
         message: {
-          text: "Restored full 60-minute daily schedule across all 5 sprint days. All chunked segments have been consolidated.",
-          spoken: "Restored standard 60-minute daily schedule."
+          text: 'I can restore the full 60-minute daily schedule across all 5 sprint days. Confirm to apply.',
+          spoken: 'I can restore the standard 60-minute daily schedule.'
         },
-        plan: INITIAL_INTERVIEW_PREP_PLAN,
+        plan: null,
         action: {
           id: `act-${Date.now()}`,
           type: 'reschedule_plan',
-          label: 'Schedule Restored',
-          description: 'Restored standard 60-minute daily capacity',
-          state: 'completed',
-          payload: INITIAL_INTERVIEW_PREP_PLAN
+          label: 'Awaiting Confirmation',
+          description: 'This will restore standard 60-minute daily capacity.',
+          state: 'awaiting_confirmation',
+          payload: { plan: INITIAL_INTERVIEW_PREP_PLAN }
         },
         suggestedFollowUps: [
           'I only have 30 minutes today. Adjust my schedule',
@@ -607,22 +640,16 @@ export const apiService = {
       };
     }
 
-    // Sunsama Pattern 3: Daily Shutdown
+    // Sunsama Pattern 3: Daily Shutdown (read-only status — no false completed write)
     if (lower.includes('shutdown') || lower.includes('wrap up')) {
       return {
         ok: true,
         trace: defaultTrace,
         message: {
-          text: "Daily Shutdown Ritual: You completed 1 core task tonight. 5 items remain scheduled for the rest of the week. Shutting down until tomorrow evening.",
-          spoken: "Daily shutdown complete. See you tomorrow evening."
+          text: 'Daily shutdown: 1 core task done tonight. 5 items remain for the rest of the week. Ready to pause until tomorrow evening.',
+          spoken: 'Ready to shut down until tomorrow evening.'
         },
-        action: {
-          id: `act-${Date.now()}`,
-          type: 'update_plan',
-          label: 'Daily Shutdown Completed',
-          description: 'Logged 60m focus time and safely deferred remaining milestones to tomorrow',
-          state: 'completed'
-        },
+        action: null,
         suggestedFollowUps: [
           'Start planning ritual',
           'Show my saved plans'
@@ -647,30 +674,30 @@ export const apiService = {
 
   // POST /api/actions/:id/confirm
   async confirmAction(actionId: string, payload?: any): Promise<{ ok: boolean; action_id: string; status: string; plan?: Plan; summary?: string }> {
-    const remote = await tryFetch<{ ok: boolean; action_id: string; status: string; plan: Plan; summary: string }>(
-      `/api/actions/${actionId}/confirm`,
-      { method: 'POST' }
-    );
-    if (remote && remote.ok) return remote;
+    if (USE_MOCK) {
+      const targetPlan = payload?.plan || INITIAL_INTERVIEW_PREP_PLAN;
+      await this.savePlan(targetPlan);
+      return {
+        ok: true,
+        action_id: actionId,
+        status: 'completed',
+        plan: targetPlan,
+        summary: payload?.summary || 'Changes applied to your plan.'
+      };
+    }
 
-    // Local fallback
-    const targetPlan = payload?.plan || INITIAL_INTERVIEW_PREP_PLAN;
-    await this.savePlan(targetPlan);
-    return {
-      ok: true,
-      action_id: actionId,
-      status: 'completed',
-      plan: targetPlan,
-      summary: 'Monday is now 30 minutes. Added Peer Mock Coding Interview on Thursday.'
-    };
+    return apiFetch<{ ok: boolean; action_id: string; status: string; plan: Plan; summary: string }>(
+      `/api/actions/${actionId}/confirm`,
+      { method: 'POST', body: JSON.stringify(payload || {}) }
+    );
   },
 
   // POST /api/actions/:id/cancel
   async cancelAction(actionId: string): Promise<{ ok: boolean; status: string }> {
-    const remote = await tryFetch<{ ok: boolean; status: string }>(`/api/actions/${actionId}/cancel`, {
+    if (USE_MOCK) return { ok: true, status: 'dismissed' };
+    return apiFetch<{ ok: boolean; status: string }>(`/api/actions/${actionId}/cancel`, {
       method: 'POST'
     });
-    return remote || { ok: true, status: 'dismissed' };
   },
 
   // Motion Auto-Cascade Scheduling Engine
@@ -737,64 +764,80 @@ export const apiService = {
 
   // GET /api/plans
   async getPlans(): Promise<Plan[]> {
-    const remote = await tryFetch<{ ok: boolean; plans: PlanSummary[] | Plan[] }>('/api/plans');
-    if (remote && remote.ok && Array.isArray(remote.plans)) {
-      return remote.plans as Plan[];
+    if (USE_MOCK) {
+      const local = localStorage.getItem('daybridge_saved_plans');
+      return local ? JSON.parse(local) : [];
     }
-    const local = localStorage.getItem('daybridge_saved_plans');
-    return local ? JSON.parse(local) : [INITIAL_INTERVIEW_PREP_PLAN];
+    const remote = await apiFetch<{ ok: boolean; plans: PlanSummary[] | Plan[] }>('/api/plans');
+    return Array.isArray(remote.plans) ? (remote.plans as Plan[]) : [];
   },
 
   // GET /api/plans/:id
   async getPlanById(id: string): Promise<Plan | null> {
-    const remote = await tryFetch<{ ok: boolean; plan: Plan }>(`/api/plans/${id}`);
-    if (remote && remote.ok) return remote.plan;
-    const plans = await this.getPlans();
-    return plans.find((p) => p.id === id) || null;
+    if (USE_MOCK) {
+      const plans = await this.getPlans();
+      return plans.find((p) => p.id === id) || null;
+    }
+    const remote = await apiFetch<{ ok: boolean; plan: Plan }>(`/api/plans/${id}`);
+    return remote.plan;
   },
 
   // POST /api/plans
   async savePlan(plan: Plan): Promise<Plan> {
-    const remote = await tryFetch<{ ok: boolean; plan: Plan }>('/api/plans', {
-      method: 'POST',
-      body: JSON.stringify({ plan })
-    });
-    if (remote && remote.ok) return remote.plan;
+    const toSave: Plan = {
+      ...plan,
+      status: 'saved',
+      updated_at: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    const existing = await this.getPlans();
-    const updated = existing.some((p) => p.id === plan.id)
-      ? existing.map((p) => (p.id === plan.id ? plan : p))
-      : [plan, ...existing];
-    localStorage.setItem('daybridge_saved_plans', JSON.stringify(updated));
-    return plan;
+    if (USE_MOCK) {
+      const existingRaw = localStorage.getItem('daybridge_saved_plans');
+      const existing: Plan[] = existingRaw ? JSON.parse(existingRaw) : [];
+      const updated = existing.some((p) => p.id === toSave.id)
+        ? existing.map((p) => (p.id === toSave.id ? toSave : p))
+        : [toSave, ...existing];
+      localStorage.setItem('daybridge_saved_plans', JSON.stringify(updated));
+      return toSave;
+    }
+
+    const remote = await apiFetch<{ ok: boolean; plan: Plan }>('/api/plans', {
+      method: 'POST',
+      body: JSON.stringify({ plan: toSave })
+    });
+    return remote.plan;
   },
 
   // PATCH /api/plans/:id
   async updatePlan(id: string, updates: { title?: string; objective?: string }): Promise<Plan | null> {
-    const remote = await tryFetch<{ ok: boolean; plan: Plan }>(`/api/plans/${id}`, {
+    if (USE_MOCK) {
+      const plans = await this.getPlans();
+      const plan = plans.find((p) => p.id === id);
+      if (!plan) return null;
+      const updatedPlan: Plan = { ...plan, ...updates, updated_at: new Date().toISOString() };
+      await this.savePlan(updatedPlan);
+      return updatedPlan;
+    }
+    const remote = await apiFetch<{ ok: boolean; plan: Plan }>(`/api/plans/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates)
     });
-    if (remote && remote.ok) return remote.plan;
-
-    const plans = await this.getPlans();
-    const plan = plans.find((p) => p.id === id);
-    if (!plan) return null;
-    const updatedPlan: Plan = { ...plan, ...updates, updated_at: new Date().toISOString() };
-    await this.savePlan(updatedPlan);
-    return updatedPlan;
+    return remote.plan;
   },
 
   // DELETE /api/plans/:id
   async deletePlan(planId: string): Promise<boolean> {
-    const remote = await tryFetch<{ ok: boolean; deleted_id: string }>(`/api/plans/${planId}`, {
+    if (USE_MOCK) {
+      const existing = await this.getPlans();
+      localStorage.setItem(
+        'daybridge_saved_plans',
+        JSON.stringify(existing.filter((p) => p.id !== planId))
+      );
+      return true;
+    }
+    await apiFetch<{ ok: boolean; deleted_id: string }>(`/api/plans/${planId}`, {
       method: 'DELETE'
     });
-    if (remote && remote.ok) return true;
-
-    const existing = await this.getPlans();
-    const filtered = existing.filter((p) => p.id !== planId);
-    localStorage.setItem('daybridge_saved_plans', JSON.stringify(filtered));
     return true;
   },
 
@@ -803,7 +846,10 @@ export const apiService = {
     taskId: string,
     updates: Partial<Task>
   ): Promise<{ ok: boolean; task?: Task; progress?: { done: number; total: number; minutes_left: number } }> {
-    const remote = await tryFetch<{
+    if (USE_MOCK) {
+      return { ok: true, progress: { done: 1, total: 6, minutes_left: 225 } };
+    }
+    return apiFetch<{
       ok: boolean;
       task: Task;
       progress: { done: number; total: number; minutes_left: number };
@@ -811,12 +857,6 @@ export const apiService = {
       method: 'PATCH',
       body: JSON.stringify(updates)
     });
-    if (remote && remote.ok) return remote;
-
-    return {
-      ok: true,
-      progress: { done: 1, total: 6, minutes_left: 225 }
-    };
   },
 
   // POST /api/plans/:id/tasks
@@ -824,52 +864,52 @@ export const apiService = {
     planId: string,
     taskData: { title: string; description?: string; day: string; minutes: number; priority: 'high' | 'medium' | 'low' }
   ): Promise<{ ok: boolean; task?: Task; plan?: Plan }> {
-    const remote = await tryFetch<{ ok: boolean; task: Task; plan: Plan }>(`/api/plans/${planId}/tasks`, {
+    if (USE_MOCK) {
+      const plan = await this.getPlanById(planId);
+      if (!plan) return { ok: false };
+      const newTask: Task = {
+        id: `task_${Date.now()}`,
+        title: taskData.title,
+        description: taskData.description || '',
+        day: taskData.day,
+        minutes: taskData.minutes,
+        estimatedMinutes: taskData.minutes,
+        priority: taskData.priority,
+        done: false,
+        isCompleted: false,
+        position: plan.tasks.length,
+        orderIndex: plan.tasks.length
+      };
+      const updatedPlan: Plan = {
+        ...plan,
+        tasks: [...plan.tasks, newTask],
+        updated_at: new Date().toISOString()
+      };
+      await this.savePlan(updatedPlan);
+      return { ok: true, task: newTask, plan: updatedPlan };
+    }
+    return apiFetch<{ ok: boolean; task: Task; plan: Plan }>(`/api/plans/${planId}/tasks`, {
       method: 'POST',
       body: JSON.stringify(taskData)
     });
-    if (remote && remote.ok) return remote;
-
-    const plan = await this.getPlanById(planId);
-    if (!plan) return { ok: false };
-    const newTask: Task = {
-      id: `task_${Date.now()}`,
-      title: taskData.title,
-      description: taskData.description || '',
-      day: taskData.day,
-      minutes: taskData.minutes,
-      estimatedMinutes: taskData.minutes,
-      priority: taskData.priority,
-      done: false,
-      isCompleted: false,
-      position: plan.tasks.length,
-      orderIndex: plan.tasks.length
-    };
-    const updatedPlan: Plan = {
-      ...plan,
-      tasks: [...plan.tasks, newTask],
-      updated_at: new Date().toISOString()
-    };
-    await this.savePlan(updatedPlan);
-    return { ok: true, task: newTask, plan: updatedPlan };
   },
 
   // DELETE /api/tasks/:id
   async deleteTask(taskId: string, planId?: string): Promise<{ ok: boolean; deleted_id?: string; plan?: Plan }> {
-    const remote = await tryFetch<{ ok: boolean; deleted_id: string; plan: Plan }>(`/api/tasks/${taskId}`, {
+    if (USE_MOCK) {
+      if (!planId) return { ok: true, deleted_id: taskId };
+      const plan = await this.getPlanById(planId);
+      if (!plan) return { ok: true, deleted_id: taskId };
+      const updatedPlan: Plan = {
+        ...plan,
+        tasks: plan.tasks.filter((t) => t.id !== taskId),
+        updated_at: new Date().toISOString()
+      };
+      await this.savePlan(updatedPlan);
+      return { ok: true, deleted_id: taskId, plan: updatedPlan };
+    }
+    return apiFetch<{ ok: boolean; deleted_id: string; plan: Plan }>(`/api/tasks/${taskId}`, {
       method: 'DELETE'
     });
-    if (remote && remote.ok) return remote;
-
-    if (!planId) return { ok: true, deleted_id: taskId };
-    const plan = await this.getPlanById(planId);
-    if (!plan) return { ok: true, deleted_id: taskId };
-    const updatedPlan: Plan = {
-      ...plan,
-      tasks: plan.tasks.filter((t) => t.id !== taskId),
-      updated_at: new Date().toISOString()
-    };
-    await this.savePlan(updatedPlan);
-    return { ok: true, deleted_id: taskId, plan: updatedPlan };
   }
 };

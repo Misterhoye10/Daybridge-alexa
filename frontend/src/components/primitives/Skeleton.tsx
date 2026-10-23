@@ -8,6 +8,7 @@ export interface SkeletonProps {
   className?: string;
 }
 
+/** Static block + opacity pulse — DESIGN §8 bans shimmer gradients. */
 export const Skeleton: React.FC<SkeletonProps> = ({
   width = '100%',
   height = '16px',
@@ -18,28 +19,16 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   return (
     <div
       className={`daybridge-skeleton ${className}`}
+      aria-hidden="true"
       style={{
         width,
         height,
         borderRadius,
         backgroundColor: 'var(--color-bg-sunken)',
         border: '1px solid var(--color-border-default)',
-        position: 'relative',
-        overflow: 'hidden',
+        animation: 'skeletonPulse 1.2s ease-in-out infinite',
         ...style
       }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent)',
-          animation: 'shimmer 1.5s infinite'
-        }}
-      />
-    </div>
+    />
   );
 };

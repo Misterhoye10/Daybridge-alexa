@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { ArrowRight, Plus, Minus } from 'lucide-react';
+import { gsap, useGSAP } from '../../motion/setup';
+import { motion, RISE_Y } from '../../motion/tokens';
 
 export interface DiffRowProps {
   field: string;
@@ -14,6 +16,25 @@ export const DiffRow: React.FC<DiffRowProps> = ({
   after,
   changeType = 'modified'
 }) => {
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // Suggested → awaiting: diff expands (base) — DESIGN §6
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        gsap.from(rowRef.current, {
+          y: RISE_Y / 2,
+          autoAlpha: 0,
+          duration: motion.base,
+          ease: motion.enter
+        });
+      });
+      return () => mm.revert();
+    },
+    { scope: rowRef }
+  );
+
   const typeStyles = {
     added: {
       color: 'var(--color-state-completed-text)',
@@ -34,6 +55,7 @@ export const DiffRow: React.FC<DiffRowProps> = ({
 
   return (
     <div
+      ref={rowRef}
       style={{
         display: 'flex',
         alignItems: 'center',

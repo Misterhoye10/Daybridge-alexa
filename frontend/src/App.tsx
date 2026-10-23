@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Plan, Task, ChatMessage, AssistantAction } from './types/daybridge';
 import { Logo } from './components/brand/Logo';
 import { ChatPanel } from './components/chat/ChatPanel';
@@ -7,7 +7,12 @@ import { SavedPlansDrawer } from './components/saved/SavedPlansDrawer';
 import { TokenSwatchPage } from './components/design-system/TokenSwatchPage';
 import { apiService, INITIAL_INTERVIEW_PREP_PLAN } from './services/api';
 import { useTheme } from './context/ThemeContext';
-import { Bookmark, RotateCcw, MessageSquare, LayoutGrid, Palette, Sun, Moon, Plus } from 'lucide-react';
+import { Bookmark, RotateCcw, LayoutList, Sun, Moon, Plus, X } from 'lucide-react';
+import { gsap, useGSAP } from './motion/setup';
+import { motion } from './motion/tokens';
+import { OfflineBanner } from './components/common/OfflineBanner';
+import { Toast } from './components/common/Toast';
+import { DaybridgeApiError } from './services/api';
 
 export const App: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -25,9 +30,22 @@ export const App: React.FC = () => {
     return false;
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorRetryable, setErrorRetryable] = useState(true);
+  const [lastFailedSend, setLastFailedSend] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(
+    () => (typeof navigator !== 'undefined' ? !navigator.onLine : false)
+  );
   const [pendingAction, setPendingAction] = useState<AssistantAction | undefined>(undefined);
-  const [mobileTab, setMobileTab] = useState<'chat' | 'plan'>('chat');
+  /** Mobile only: plan as full-height sheet. Desktop keeps pinned pane. */
+  const [isPlanSheetOpen, setIsPlanSheetOpen] = useState(false);
+  const [isNarrowViewport, setIsNarrowViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1023px)').matches : false
+  );
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
@@ -39,17 +57,93 @@ export const App: React.FC = () => {
     'Start daily shutdown'
   ]);
 
-  // Load saved plans on mount
+  // Load saved plans on mount. Soft-fail: empty library, no banner on first paint.
+  // Connection errors belong to chat/save/confirm — not the welcome screen.
   useEffect(() => {
     const fetchPlans = async () => {
-      const plans = await apiService.getPlans();
-      setSavedPlans(plans);
+      try {
+        const plans = await apiService.getPlans();
+        setSavedPlans(plans);
+      } catch {
+        setSavedPlans([]);
+      }
     };
     fetchPlans();
   }, []);
 
+  // Offline / online — DESIGN network banner (#3, #18)
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true);
+    const goOnline = () => setIsOffline(false);
+    window.addEventListener('offline', goOffline);
+    window.addEventListener('online', goOnline);
+    return () => {
+      window.removeEventListener('offline', goOffline);
+      window.removeEventListener('online', goOnline);
+    };
+  }, []);
+
+  const refreshLibrary = async () => {
+    setIsLibraryLoading(true);
+    setLibraryError(null);
+    try {
+      const plans = await apiService.getPlans();
+      setSavedPlans(plans);
+    } catch (err: unknown) {
+      const message =
+        err instanceof DaybridgeApiError
+          ? err.message
+          : "Couldn't load saved plans. Retry when you're back online.";
+      setLibraryError(message);
+    } finally {
+      setIsLibraryLoading(false);
+    }
+  };
+
+  // Track lg breakpoint for chat-first + plan sheet
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const onChange = () => {
+      setIsNarrowViewport(mq.matches);
+      if (!mq.matches) setIsPlanSheetOpen(false);
+    };
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // Esc closes plan sheet
+  useEffect(() => {
+    if (!isPlanSheetOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsPlanSheetOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isPlanSheetOpen]);
+
+  const focusComposer = () => {
+    setIsPlanSheetOpen(false);
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLTextAreaElement>('[data-composer]')?.focus();
+    });
+  };
+
+  const openPlanSheet = () => {
+    if (isNarrowViewport || window.matchMedia('(max-width: 1023px)').matches) {
+      setIsPlanSheetOpen(true);
+    }
+  };
+
   // Handle sending a chat message
   const handleSendMessage = async (text: string) => {
+    if (isOffline) {
+      setErrorMessage("Connection lost. Your conversation is safe. Retry when you're back online.");
+      setErrorRetryable(true);
+      setLastFailedSend(text);
+      return;
+    }
+
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
@@ -60,6 +154,7 @@ export const App: React.FC = () => {
     setChatMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
     setErrorMessage(null);
+    setLastFailedSend(null);
 
     try {
       const response = await apiService.sendChat({
@@ -71,10 +166,18 @@ export const App: React.FC = () => {
       const messageText = typeof response.message === 'string' ? response.message : response.message.text;
       const spokenText = typeof response.message === 'object' ? response.message.spoken : undefined;
 
+      if (!messageText?.trim() && !response.plan && !response.action) {
+        throw new DaybridgeApiError(
+          'invalid_ai',
+          "That plan didn't come through right. Try again, or rephrase your request.",
+          true
+        );
+      }
+
       const assistantMsg: ChatMessage = {
         id: `msg-resp-${Date.now()}`,
         role: 'assistant',
-        content: messageText,
+        content: messageText || "Here's what I put together.",
         spoken: spokenText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         trace: response.trace,
@@ -84,25 +187,49 @@ export const App: React.FC = () => {
 
       setChatMessages((prev) => [...prev, assistantMsg]);
 
+      // Draft plans land on canvas immediately; mutations wait for Confirm
       if (response.plan) {
-        if (response.action?.state === 'suggested' || response.action?.state === 'awaiting_confirmation') {
-          setPendingAction(response.action);
-        } else {
-          setActivePlan(response.plan);
-          if (response.action) setPendingAction(response.action);
-        }
-      } else if (response.action?.state === 'awaiting_confirmation') {
+        setActivePlan(response.plan);
+        openPlanSheet();
+      }
+      if (
+        response.action?.state === 'suggested' ||
+        response.action?.state === 'awaiting_confirmation'
+      ) {
         setPendingAction(response.action);
+        openPlanSheet();
       }
 
       if (response.suggestedFollowUps && response.suggestedFollowUps.length > 0) {
         setSuggestedPrompts(response.suggestedFollowUps);
       }
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Couldn't complete request. Please try again.");
+    } catch (err: unknown) {
+      const apiErr = err instanceof DaybridgeApiError ? err : null;
+      setErrorMessage(
+        apiErr?.message ||
+          (err as Error)?.message ||
+          "Couldn't complete request. Please try again."
+      );
+      setErrorRetryable(apiErr ? apiErr.retryable : true);
+      setLastFailedSend(text);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRetrySend = () => {
+    if (!lastFailedSend) return;
+    const text = lastFailedSend;
+    setErrorMessage(null);
+    // Drop the last user bubble if it was the failed send (avoid duplicate)
+    setChatMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === 'user' && last.content === text) {
+        return prev.slice(0, -1);
+      }
+      return prev;
+    });
+    void handleSendMessage(text);
   };
 
   // Toggle task completion
@@ -174,96 +301,78 @@ export const App: React.FC = () => {
     });
   };
 
-  // Apply suggested action
+  // Confirm only after backend (or explicit mock) success — truthful state
   const handleApplyAction = async (action: AssistantAction) => {
-    let appliedPlan: Plan | null = null;
-    if (action.id) {
-      try {
-        const res = await apiService.confirmAction(action.id, action.payload);
-        if (res && res.plan) {
-          appliedPlan = res.plan;
-        }
-      } catch (e) {
-        console.error(e);
+    const planPayload = action.payload?.plan as Plan | undefined;
+    setPendingAction({
+      ...action,
+      state: 'running',
+      label: 'Applying changes'
+    });
+    setErrorMessage(null);
+
+    try {
+      const result = await apiService.confirmAction(action.id, {
+        plan: planPayload,
+        summary: action.description
+      });
+
+      if (!result.ok) {
+        throw new Error("Couldn't apply changes. Nothing was changed.");
       }
-    }
 
-    if (!appliedPlan) {
-      appliedPlan = action.payload?.plan || (action as any).data || (action.payload && (action.payload as any).tasks ? action.payload : null);
-    }
+      const nextPlan = result.plan || planPayload;
+      if (nextPlan) setActivePlan(nextPlan);
 
-    if (appliedPlan) {
-      setActivePlan(appliedPlan);
-    } else if (activePlan) {
-      const updatedTasks = activePlan.tasks.map((t, idx) =>
-        idx === 0
-          ? {
-              ...t,
-              title: 'Light DS Review & Cheat Sheet Setup',
-              description: 'Reduced workload: 30 minutes reviewing high-level DS syntax & complexities.',
-              day: 'Monday (30m)',
-              minutes: 30,
-              estimatedMinutes: 30
-            }
-          : t
+      setPendingAction({
+        ...action,
+        state: 'completed',
+        label: 'Applied',
+        description: result.summary || action.description
+      });
+
+      setChatMessages((prev) =>
+        prev.map((m) => {
+          if (m.action && (m.action.id === action.id || m.action.label === action.label)) {
+            return {
+              ...m,
+              action: {
+                ...m.action,
+                state: 'completed',
+                label: 'Applied'
+              }
+            };
+          }
+          return m;
+        })
       );
-      const hasMock = updatedTasks.some((t) => t.title.toLowerCase().includes('mock'));
-      if (!hasMock) {
-        updatedTasks.splice(3, 0, {
-          id: `task-mock-${Date.now()}`,
-          title: 'Peer Mock Coding Interview & Feedback',
-          description: 'Simulated 45-minute live coding session with behavioral follow-up.',
-          day: 'Thursday (1 hr)',
-          minutes: 45,
-          estimatedMinutes: 45,
-          priority: 'high',
-          done: false,
-          isCompleted: false,
-          position: 3.5,
-          orderIndex: 3.5
-        });
-      }
-      setActivePlan({
-        ...activePlan,
-        title: `${activePlan.title} (Refined)`,
-        tasks: updatedTasks,
-        updatedAt: new Date().toISOString()
+
+      const confirmMsg: ChatMessage = {
+        id: `confirm-${Date.now()}`,
+        role: 'assistant',
+        content: result.summary || `Applied changes to "${nextPlan?.title || 'your plan'}".`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        action: {
+          id: action.id,
+          type: action.type,
+          label: 'Applied',
+          description: result.summary || action.description,
+          state: 'completed'
+        }
+      };
+      setChatMessages((prev) => [...prev, confirmMsg]);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Couldn't apply changes. Nothing was changed.";
+      setErrorMessage(message);
+      setPendingAction({
+        ...action,
+        state: 'failed',
+        label: 'Failed',
+        error: message,
+        description: message
       });
     }
-
-    // Update chat message so action badge shows Confirmed and Confirm button disappears
-    setChatMessages((prev) =>
-      prev.map((m) => {
-        if (m.action && (m.action.id === action.id || m.action.label === action.label)) {
-          return {
-            ...m,
-            action: {
-              ...m.action,
-              state: 'completed',
-              label: 'Changes Confirmed'
-            }
-          };
-        }
-        return m;
-      })
-    );
-
-    // Add confirmation assistant response in chat
-    const confirmMsg: ChatMessage = {
-      id: `msg-confirm-${Date.now()}`,
-      role: 'assistant',
-      content: 'Confirmed. Monday is reduced to 30 minutes, and Peer Mock Coding Interview has been added for Thursday.',
-      spoken: 'Plan updated: Monday is now 30 minutes with a mock interview added for Thursday.',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      trace: [
-        { stage: 'heard', label: 'Confirmed', ms: 10, ok: true },
-        { stage: 'understood', label: 'Updated Plan', ms: 140, ok: true },
-        { stage: 'result', label: 'Ready', ms: 10, ok: true }
-      ]
-    };
-    setChatMessages((prev) => [...prev, confirmMsg]);
-
-    setPendingAction(undefined);
   };
 
   // Dismiss action
@@ -271,19 +380,22 @@ export const App: React.FC = () => {
     if (pendingAction?.id) {
       try {
         await apiService.cancelAction(pendingAction.id);
-      } catch (e) {
-        console.error(e);
+      } catch {
+        // Dismiss locally even if cancel call fails
       }
     }
     setChatMessages((prev) =>
       prev.map((m) => {
-        if (m.action && (m.action.id === pendingAction?.id || m.action.label === pendingAction?.label)) {
+        if (
+          m.action &&
+          (m.action.id === pendingAction?.id || m.action.label === pendingAction?.label)
+        ) {
           return {
             ...m,
             action: {
               ...m.action,
               state: 'dismissed',
-              label: 'Changes Dismissed'
+              label: 'Dismissed'
             }
           };
         }
@@ -293,63 +405,81 @@ export const App: React.FC = () => {
     setPendingAction(undefined);
   };
 
+  // Propose rebalance — never mark completed until Confirm
   const handleRebalanceSchedule = () => {
     if (!activePlan) return;
     const isAlreadyChunked = activePlan.tasks.some((t) => t.chunkPart);
     if (isAlreadyChunked) {
-      setActivePlan(INITIAL_INTERVIEW_PREP_PLAN);
-      const restoreAction: AssistantAction = {
+      setPendingAction({
         id: `act-${Date.now()}`,
         type: 'reschedule_plan',
-        label: 'Schedule Restored',
-        description: 'Restored standard 60-minute daily capacity',
-        state: 'completed',
-        payload: INITIAL_INTERVIEW_PREP_PLAN
-      };
-      setPendingAction(restoreAction);
+        label: 'Awaiting Confirmation',
+        description: 'This will restore standard 60-minute daily capacity.',
+        state: 'awaiting_confirmation',
+        payload: { plan: INITIAL_INTERVIEW_PREP_PLAN }
+      });
     } else {
       const rebalanced = apiService.rebalancePlan(activePlan, 30);
-      setActivePlan(rebalanced);
-      const cascadeAction: AssistantAction = {
+      setPendingAction({
         id: `act-${Date.now()}`,
         type: 'reschedule_plan',
-        label: 'Motion Cascade Applied',
-        description: 'Chunked Tuesday into 30m sprint and bumped Part 2 to Wednesday',
-        state: 'completed',
-        payload: rebalanced
-      };
-      setPendingAction(cascadeAction);
+        label: 'Awaiting Confirmation',
+        description: 'This will chunk Tuesday into a 30m sprint and bump Part 2 to Wednesday.',
+        state: 'awaiting_confirmation',
+        payload: { plan: rebalanced }
+      });
     }
   };
 
-  // Save active plan
+  // Save active plan — past tense only after success
   const handleSaveActivePlan = async () => {
-    if (!activePlan) return;
-    await apiService.savePlan(activePlan);
-    const plans = await apiService.getPlans();
-    setSavedPlans(plans);
+    if (!activePlan || isSaving) return;
+    if (isOffline) {
+      setErrorMessage("Connection lost. Your conversation is safe. Retry when you're back online.");
+      setErrorRetryable(true);
+      return;
+    }
+    setErrorMessage(null);
+    setIsSaving(true);
+    try {
+      const saved = await apiService.savePlan(activePlan);
+      setActivePlan(saved);
+      const plans = await apiService.getPlans();
+      setSavedPlans(plans);
 
-    const confirmMsg: ChatMessage = {
-      id: `save-confirm-${Date.now()}`,
-      role: 'assistant',
-      content: `Saved "${activePlan.title}" to library.`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      action: {
-        id: `act-save-${Date.now()}`,
-        type: 'update_plan',
-        label: 'Saved',
-        description: 'Synchronized with local storage',
-        state: 'completed'
-      }
-    };
-    setChatMessages((prev) => [...prev, confirmMsg]);
+      const confirmMsg: ChatMessage = {
+        id: `save-confirm-${Date.now()}`,
+        role: 'assistant',
+        content: `Saved "${saved.title}" to library.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        action: {
+          id: `act-save-${Date.now()}`,
+          type: 'update_plan',
+          label: 'Saved',
+          description: 'Plan stored successfully',
+          state: 'completed'
+        }
+      };
+      setChatMessages((prev) => [...prev, confirmMsg]);
+      setToastMessage('Saved to library.');
+    } catch (err: unknown) {
+      const message =
+        err instanceof DaybridgeApiError
+          ? err.message
+          : (err as Error)?.message || "Couldn't save the plan. Nothing was changed.";
+      setErrorMessage(message);
+      setErrorRetryable(true);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Select a plan from saved drawer
   const handleSelectPlan = (plan: Plan) => {
     setActivePlan(plan);
     setPendingAction(undefined);
-    setMobileTab('plan');
+    setIsSavedDrawerOpen(false);
+    openPlanSheet();
   };
 
   // Delete a plan from saved list
@@ -367,9 +497,61 @@ export const App: React.FC = () => {
     setChatMessages([]);
     setActivePlan(null);
     setPendingAction(undefined);
+    setIsPlanSheetOpen(false);
   };
 
   const isCurrentPlanSaved = savedPlans.some((p) => p.id === activePlan?.id);
+  const fabNeedsAttention =
+    pendingAction?.state === 'awaiting_confirmation' || pendingAction?.state === 'failed';
+  const fabTaskCount = activePlan?.tasks?.length ?? 0;
+  const shellRef = useRef<HTMLDivElement>(null);
+  const planSheetRef = useRef<HTMLElement>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
+
+  // Plan sheet open — DESIGN: slides up ease.enter (slow)
+  useGSAP(
+    () => {
+      if (!isNarrowViewport || !isPlanSheetOpen || !planSheetRef.current) return;
+      const mm = gsap.matchMedia();
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        gsap.fromTo(
+          planSheetRef.current,
+          { y: 28, autoAlpha: 0 },
+          { y: 0, autoAlpha: 1, duration: motion.slow, ease: motion.enter }
+        );
+        gsap.fromTo(
+          '.plan-sheet-scrim',
+          { autoAlpha: 0 },
+          { autoAlpha: 1, duration: motion.base, ease: motion.standard }
+        );
+      });
+      mm.add('(prefers-reduced-motion: reduce)', () => {
+        gsap.fromTo(planSheetRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: motion.fast });
+      });
+      return () => mm.revert();
+    },
+    { scope: shellRef, dependencies: [isPlanSheetOpen, isNarrowViewport] }
+  );
+
+  // Plan FAB entrance when sheet is closed
+  useGSAP(
+    () => {
+      if (!isNarrowViewport || isPlanSheetOpen || !fabRef.current) return;
+      const mm = gsap.matchMedia();
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        gsap.fromTo(
+          fabRef.current,
+          { y: 10, autoAlpha: 0, scale: 0.96 },
+          { y: 0, autoAlpha: 1, scale: 1, duration: motion.base, ease: motion.enter }
+        );
+      });
+      mm.add('(prefers-reduced-motion: reduce)', () => {
+        gsap.fromTo(fabRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: motion.fast });
+      });
+      return () => mm.revert();
+    },
+    { scope: shellRef, dependencies: [isNarrowViewport, isPlanSheetOpen] }
+  );
 
   if (isDesignSystemOpen) {
     return (
@@ -380,80 +562,35 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        backgroundColor: 'var(--color-bg-canvas)',
-        color: 'var(--color-text-primary)',
-        overflow: 'hidden',
-        fontFamily: 'var(--font-ui)'
-      }}
-    >
-      {/* Top Brand Navigation Header */}
-      {/* Top Brand Navigation Header (56px per Section 7) */}
-      <header
-        style={{
-          height: '56px',
-          borderBottom: '1px solid var(--color-border-default)',
-          backgroundColor: 'var(--color-bg-surface)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 24px',
-          zIndex: 100
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div className="app-shell" ref={shellRef}>
+      <header className="app-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
           <Logo size="md" showWordmark={true} />
         </div>
 
-        {/* Header Right Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* New Plan Trigger */}
+        <div className="app-header-actions">
           <button
+            type="button"
+            className="app-header-btn app-header-btn--primary"
             onClick={handleResetSession}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--color-action-primary)',
-              color: 'var(--color-action-on-primary)',
-              border: 'none',
-              fontSize: 'var(--font-size-label)',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all var(--duration-fast) var(--ease-standard)'
-            }}
             title="Start a new plan"
+            aria-label="New plan"
           >
             <Plus size={14} strokeWidth={2.5} />
-            <span>New plan</span>
+            <span className="btn-label">New plan</span>
           </button>
 
-          {/* Saved Plans */}
           <button
-            onClick={() => setIsSavedDrawerOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--color-bg-sunken)',
-              border: '1px solid var(--color-border-default)',
-              color: 'var(--color-text-secondary)',
-              fontSize: 'var(--font-size-label)',
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'all var(--duration-fast) var(--ease-standard)'
+            type="button"
+            className="app-header-btn app-header-btn--sunken"
+            onClick={() => {
+              setIsSavedDrawerOpen(true);
+              void refreshLibrary();
             }}
+            aria-label={`Saved plans, ${savedPlans.length}`}
           >
             <Bookmark size={14} />
-            <span>Saved plans</span>
+            <span className="btn-label">Saved plans</span>
             <span
               className="tabular-nums"
               style={{
@@ -470,181 +607,132 @@ export const App: React.FC = () => {
             </span>
           </button>
 
-          {/* Theme Toggle Button */}
           <button
+            type="button"
+            className="app-header-btn"
             onClick={toggleTheme}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 10px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border-default)',
-              backgroundColor: 'var(--color-bg-surface)',
-              color: 'var(--color-text-secondary)',
-              fontSize: 'var(--font-size-label)',
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'all var(--duration-fast) var(--ease-standard)'
-            }}
+            aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
             title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
           >
             {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
           </button>
 
-          {/* Design System Swatches */}
           <button
-            onClick={() => setIsDesignSystemOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'transparent',
-              border: '1px solid var(--color-border-default)',
-              color: 'var(--color-text-tertiary)',
-              fontSize: 'var(--font-size-label)',
-              cursor: 'pointer'
-            }}
-            title="Design System & Tokens"
-          >
-            <Palette size={14} />
-          </button>
-
-          {/* Reset Session */}
-          <button
+            type="button"
+            className="app-header-btn app-header-btn--ghost app-header-btn--reset"
             onClick={handleResetSession}
+            aria-label="Reset conversation"
             title="Reset conversation"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'transparent',
-              border: '1px solid var(--color-border-default)',
-              color: 'var(--color-text-tertiary)',
-              cursor: 'pointer'
-            }}
           >
             <RotateCcw size={14} />
           </button>
         </div>
       </header>
 
-      {/* Mobile Tab Switcher */}
-      <div
-        className="mobile-tab-bar"
-        style={{
-          display: 'none',
-          padding: '8px 16px',
-          borderBottom: '1px solid var(--color-border-default)',
-          backgroundColor: 'var(--color-bg-surface)'
-        }}
-      >
-        <button
-          onClick={() => setMobileTab('chat')}
-          style={{
-            flex: 1,
-            padding: '8px',
-            backgroundColor: mobileTab === 'chat' ? 'var(--color-action-primary)' : 'transparent',
-            color: mobileTab === 'chat' ? 'var(--color-action-on-primary)' : 'var(--color-text-secondary)',
-            fontWeight: 600,
-            border: 'none',
-            borderRadius: 'var(--radius-sm)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            fontSize: 'var(--font-size-label)'
-          }}
-        >
-          <MessageSquare size={14} /> Assistant
-        </button>
-        <button
-          onClick={() => setMobileTab('plan')}
-          style={{
-            flex: 1,
-            padding: '8px',
-            backgroundColor: mobileTab === 'plan' ? 'var(--color-action-primary)' : 'transparent',
-            color: mobileTab === 'plan' ? 'var(--color-action-on-primary)' : 'var(--color-text-secondary)',
-            fontWeight: 600,
-            border: 'none',
-            borderRadius: 'var(--radius-sm)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            fontSize: 'var(--font-size-label)'
-          }}
-        >
-          <LayoutGrid size={14} /> Plan
-        </button>
-      </div>
+      <OfflineBanner isOffline={isOffline} />
 
-      {/* Main Studio Workspace (Single surface divided by 1px hairline per Section 1 & 7) */}
-      <main
-        style={{
-          flex: 1,
-          display: 'flex',
-          height: 'calc(100vh - 56px)',
-          width: '100%',
-          overflow: 'hidden',
-          backgroundColor: 'var(--color-bg-surface)'
-        }}
-      >
-        {/* Left Pane: Conversational Assistant Studio (720px max column) */}
-        <section
-          style={{
-            flex: 1,
-            height: '100%',
-            overflow: 'hidden',
-            borderRight: '1px solid var(--color-border-default)',
-            display: 'flex',
-            justifyContent: 'center'
-          }}
-        >
-          <div style={{ width: '100%', maxWidth: '720px', height: '100%' }}>
+      <main className="studio">
+        <section className="studio-chat is-active" aria-label="Assistant">
+          <div className="studio-chat__inner">
             <ChatPanel
               messages={chatMessages}
               isLoading={isLoading}
               onSendMessage={handleSendMessage}
               onApplyAction={handleApplyAction}
+              onDismissError={() => {
+                setErrorMessage(null);
+                setLastFailedSend(null);
+              }}
+              onRetryError={handleRetrySend}
               suggestedPrompts={suggestedPrompts}
               error={errorMessage}
+              errorRetryable={errorRetryable && Boolean(lastFailedSend)}
             />
           </div>
         </section>
 
-        {/* Right Pane: Live Interactive Plan Document Studio */}
-        <section
-          style={{
-            width: 'clamp(500px, 46vw, 780px)',
-            flexShrink: 0,
-            height: '100%',
-            overflow: 'hidden',
-            backgroundColor: 'var(--color-bg-surface)'
-          }}
-        >
-          <PlanCanvas
-            plan={activePlan}
-            pendingAction={pendingAction}
-            isSaved={isCurrentPlanSaved}
-            onSavePlan={handleSaveActivePlan}
-            onToggleTask={handleToggleTask}
-            onUpdateTask={handleUpdateTask}
-            onDeleteTask={handleDeleteTask}
-            onApplyAction={handleApplyAction}
-            onDismissAction={handleDismissAction}
-            onRebalanceSchedule={handleRebalanceSchedule}
-            onAddNewTask={handleAddNewTask}
-            onUpdatePlanTitle={handleUpdatePlanTitle}
+        {isNarrowViewport && isPlanSheetOpen && (
+          <button
+            type="button"
+            className="plan-sheet-scrim"
+            aria-label="Close plan"
+            onClick={() => setIsPlanSheetOpen(false)}
           />
+        )}
+
+        <section
+          ref={planSheetRef}
+          className={`studio-plan${isPlanSheetOpen ? ' is-sheet-open' : ''}`}
+          aria-label="Plan"
+          role={isNarrowViewport ? 'dialog' : undefined}
+          aria-modal={isNarrowViewport && isPlanSheetOpen ? true : undefined}
+          aria-hidden={isNarrowViewport && !isPlanSheetOpen}
+        >
+          {isNarrowViewport && (
+            <div className="plan-sheet-chrome">
+              <div className="plan-sheet-handle" aria-hidden="true" />
+              <div className="plan-sheet-chrome__row">
+                <span className="plan-sheet-chrome__title">Plan</span>
+                <button
+                  type="button"
+                  className="app-header-btn app-header-btn--ghost"
+                  onClick={() => setIsPlanSheetOpen(false)}
+                  aria-label="Close plan"
+                >
+                  <X size={16} strokeWidth={1.75} />
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="studio-plan__body">
+            <PlanCanvas
+              plan={activePlan}
+              pendingAction={pendingAction}
+              isSaved={isCurrentPlanSaved}
+              isLoading={isLoading}
+              isSaving={isSaving}
+              onSavePlan={handleSaveActivePlan}
+              onToggleTask={handleToggleTask}
+              onUpdateTask={handleUpdateTask}
+              onDeleteTask={handleDeleteTask}
+              onApplyAction={handleApplyAction}
+              onDismissAction={handleDismissAction}
+              onRebalanceSchedule={handleRebalanceSchedule}
+              onAddNewTask={handleAddNewTask}
+              onUpdatePlanTitle={handleUpdatePlanTitle}
+              onAskForPlan={focusComposer}
+            />
+          </div>
         </section>
       </main>
 
-      {/* Saved Plans Drawer */}
+      <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
+
+      {/* Mobile FAB — Plan destination. Desktop uses pinned pane (no FAB). */}
+      {isNarrowViewport && !isPlanSheetOpen && (
+        <button
+          ref={fabRef}
+          type="button"
+          className={`plan-fab${fabNeedsAttention ? ' plan-fab--attention' : ''}`}
+          onClick={() => setIsPlanSheetOpen(true)}
+          aria-label={
+            fabNeedsAttention
+              ? 'Open plan — confirmation needed'
+              : activePlan
+              ? `Open plan, ${fabTaskCount} tasks`
+              : 'Open plan'
+          }
+        >
+          <LayoutList size={20} strokeWidth={1.75} />
+          <span>Plan</span>
+          {fabNeedsAttention ? (
+            <span className="plan-fab__badge plan-fab__badge--dot" aria-hidden="true" />
+          ) : fabTaskCount > 0 ? (
+            <span className="plan-fab__badge tabular-nums">{fabTaskCount}</span>
+          ) : null}
+        </button>
+      )}
+
       <SavedPlansDrawer
         isOpen={isSavedDrawerOpen}
         onClose={() => setIsSavedDrawerOpen(false)}
@@ -652,6 +740,9 @@ export const App: React.FC = () => {
         activePlanId={activePlan?.id}
         onSelectPlan={handleSelectPlan}
         onDeletePlan={handleDeletePlan}
+        isLoading={isLibraryLoading}
+        error={libraryError}
+        onRetry={refreshLibrary}
       />
     </div>
   );

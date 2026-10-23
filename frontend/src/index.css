@@ -19,26 +19,21 @@
   }
 }
 
-@keyframes bubbleRise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
+/* bubbleRise / cardShake retired — GSAP owns entrances; DESIGN §6 bans shake on fail */
+
+@keyframes skeletonPulse {
+  0%,
+  100% {
     opacity: 1;
-    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.55;
   }
 }
 
-@keyframes cardShake {
-  0%, 100% {
-    transform: translateX(0);
-  }
-  25%, 75% {
-    transform: translateX(-2px);
-  }
-  50% {
-    transform: translateX(2px);
+@media (prefers-reduced-motion: reduce) {
+  .daybridge-skeleton {
+    animation: none !important;
   }
 }
 
@@ -115,4 +110,485 @@
 .agent-task-card:hover {
   border-color: var(--color-border-strong);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* ─── App shell responsive (DESIGN §9) ───
+   <1024  chat-first + Plan FAB → full-height sheet
+   ≥1024  chat + pinned plan (no FAB)
+*/
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  /* 100vh fallback for older Safari; 100dvh wins where supported */
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
+  background-color: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+}
+
+.app-header {
+  height: var(--layout-header);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border-default);
+  background-color: var(--color-bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+  z-index: 100;
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.app-header-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--target-touch);
+  min-width: var(--target-touch);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--color-border-default);
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+}
+
+.app-header-btn:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.app-header-btn--primary {
+  background-color: var(--color-action-primary);
+  color: var(--color-action-on-primary);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.app-header-btn--primary:hover {
+  background-color: var(--color-action-primary-hover);
+}
+
+.app-header-btn--ghost {
+  background-color: transparent;
+  color: var(--color-text-tertiary);
+}
+
+.app-header-btn--sunken {
+  background-color: var(--color-bg-sunken);
+}
+
+.app-header-btn .btn-label {
+  display: none;
+}
+
+.studio {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--color-bg-surface);
+  position: relative;
+}
+
+.studio-chat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.studio-chat__inner {
+  width: 100%;
+  max-width: var(--layout-chat-max);
+  height: 100%;
+  margin: 0 auto;
+}
+
+/* Mobile: plan is a sheet (hidden until FAB opens it) */
+.studio-plan {
+  display: none;
+  flex-direction: column;
+  background-color: var(--color-bg-surface);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.studio-plan__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.studio-plan.is-sheet-open {
+  display: flex;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  height: min(92vh, 100%);
+  height: min(92dvh, 100%);
+  max-height: 92vh;
+  max-height: 92dvh;
+  z-index: 30;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  border: 1px solid var(--color-border-default);
+  border-bottom: none;
+  box-shadow: var(--elevation-e2);
+  /* Entrance driven by GSAP (DESIGN §6) */
+}
+
+.plan-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  background: rgba(11, 14, 17, 0.48);
+}
+
+.plan-sheet-chrome {
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-border-default);
+  background: var(--color-bg-surface);
+}
+
+.plan-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  margin: 4px auto 10px;
+  opacity: 0.7;
+}
+
+.plan-sheet-chrome__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.plan-sheet-chrome__title {
+  font-size: var(--font-size-h3);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* Plan FAB — mobile only; sits above the unified composer, left of send */
+.plan-fab {
+  position: fixed;
+  right: var(--space-4);
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 16px 0 14px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-action-on-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--elevation-e2);
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.plan-fab:hover {
+  background: var(--color-action-primary-hover);
+}
+
+.plan-fab:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+
+.plan-fab:active {
+  transform: scale(0.98);
+}
+
+.plan-fab--attention {
+  border-color: var(--color-state-awaiting-border);
+}
+
+.plan-fab__badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-on-primary);
+  color: var(--color-action-primary);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+}
+
+.plan-fab__badge--dot {
+  min-width: 8px;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  background: var(--color-state-awaiting-text);
+}
+
+
+/* Panel padding rhythm — tighter on small screens */
+.panel-pad {
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+}
+
+.composer-bar {
+  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+}
+
+/* Unified conversation composer — one bar, not three floating controls */
+.composer-shell {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 100%;
+  min-height: 48px;
+  padding: 4px;
+  background-color: var(--color-bg-sunken);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.composer-shell:focus-within {
+  border-color: var(--color-focus-ring);
+}
+
+.composer-shell.is-listening {
+  border-color: var(--color-state-awaiting-border);
+  background-color: var(--color-state-awaiting-bg);
+}
+
+.composer-icon-btn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.composer-icon-btn:hover:not(:disabled) {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
+.composer-icon-btn:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.composer-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.composer-send.is-ready {
+  background-color: var(--color-action-primary);
+  color: var(--color-action-on-primary);
+}
+
+.composer-send.is-ready:hover {
+  background-color: var(--color-action-primary-hover);
+  color: var(--color-action-on-primary);
+}
+
+.composer-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 120px;
+  margin: 0;
+  padding: 9px 8px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: 16px; /* prevents iOS zoom on focus */
+  line-height: 22px;
+  outline: none;
+  resize: none;
+  field-sizing: content;
+}
+
+.composer-input::placeholder {
+  color: var(--color-text-tertiary);
+  opacity: 1;
+}
+
+.chat-welcome-support {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+@media (min-width: 640px) {
+  .app-header {
+    padding: 0 var(--space-6);
+  }
+
+  .app-header-btn .btn-label {
+    display: inline;
+  }
+
+  .panel-pad {
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
+  }
+}
+
+@media (min-width: 1024px) {
+  .plan-fab,
+  .plan-sheet-scrim,
+  .plan-sheet-chrome {
+    display: none !important;
+  }
+
+  .studio-chat {
+    border-right: 1px solid var(--color-border-default);
+    justify-content: center;
+  }
+
+  .studio-plan {
+    display: flex;
+    position: relative;
+    inset: auto;
+    height: 100%;
+    max-height: none;
+    flex: 0 0 min(var(--layout-plan-panel), 42vw);
+    width: min(var(--layout-plan-panel), 42vw);
+    max-width: 520px;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    animation: none;
+    z-index: auto;
+  }
+
+  .studio-plan.is-sheet-open {
+    /* desktop ignores sheet state */
+    position: relative;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    animation: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .studio-plan {
+    flex-basis: clamp(400px, 46vw, 780px);
+    width: clamp(400px, 46vw, 780px);
+    max-width: 780px;
+  }
+
+  .studio-chat__inner {
+    max-width: 720px;
+  }
+}
+
+/* Mobile type scale nudge for welcome */
+@media (max-width: 639px) {
+  .chat-welcome-title {
+    font-size: 22px !important;
+    line-height: 28px !important;
+  }
+
+  .app-header .daybridge-logo-lockup span {
+    display: none;
+  }
+
+  /* New plan already clears — hide duplicate reset on phone */
+  .app-header-btn--reset {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-header-btn--reset {
+    display: inline-flex;
+  }
+}
+
+/* Follow-up chips: allow wrap without horizontal overflow */
+.composer-followups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.plan-board-grid {
+  grid-template-columns: 1fr;
+}
+
+.saved-plans-sheet {
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .plan-board-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .saved-plans-sheet {
+    max-width: 420px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .saved-plans-sheet {
+    max-width: 460px;
+  }
 }
