@@ -15,6 +15,10 @@
 
 Demo share-screen: prefer **Chrome** for the voice segment; Safari is fine for the typed path.
 
+## First paint
+
+Welcome chat + **No plan open** on the canvas (empty by design). Pill **1 · Create plan** is the first move — the sample plan is not pre-loaded.
+
 ## 60-second script (zero typing)
 
 Use the **60s demo** pills on the welcome screen (or the compact row after chat starts):

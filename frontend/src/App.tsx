@@ -18,7 +18,8 @@ import { downloadPlanIcs, copyPlanMarkdown } from './utils/planExport';
 
 export const App: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
-  const [activePlan, setActivePlan] = useState<Plan | null>(INITIAL_INTERVIEW_PREP_PLAN);
+  // First paint: welcome + empty canvas (#3). Plan appears after ask / 60s pill 1.
+  const [activePlan, setActivePlan] = useState<Plan | null>(null);
   const [savedPlans, setSavedPlans] = useState<Plan[]>([]);
   const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
   const [isDesignSystemOpen, setIsDesignSystemOpen] = useState(() => {
